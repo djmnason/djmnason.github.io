@@ -30,9 +30,9 @@ description: >- # this means to ignore newlines until "baseurl:"
 github_username:  djmnason
 
 # Build settings
-theme: modernist
+remote_theme: modernist
 plugins:
-  - jekyll-feed
+  - jekyll-remote-theme
 
 # Exclude from processing.
 # The following items will not be processed, by default.
