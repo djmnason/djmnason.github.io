@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        <meta name="author" content="Daniel Nason">
+        <link rel="canonical" href="https://djmnason.github.io/Capital_Bikeshare_Analysis/">
+        <link rel="shortcut icon" href="../img/favicon.ico">
+        <title>Capital Bikeshare Prediction Analysis - My Docs</title>
+        <link href="../css/bootstrap.min.css" rel="stylesheet">
+        <link href="../css/fontawesome.min.css" rel="stylesheet">
+        <link href="../css/brands.min.css" rel="stylesheet">
+        <link href="../css/solid.min.css" rel="stylesheet">
+        <link href="../css/v4-font-face.min.css" rel="stylesheet">
+        <link href="../css/base.css" rel="stylesheet">
+        <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" >
+        <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css" disabled>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script>hljs.highlightAll();</script> 
+    </head>
+
+    <body>
+        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-primary">
+            <div class="container">
+                <a class="navbar-brand" href="..">My Docs</a>
+                <!-- Expander button -->
+                <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar-collapse" aria-controls="navbar-collapse" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <!-- Expanded navigation -->
+                <div id="navbar-collapse" class="navbar-collapse collapse">
+                        <!-- Main navigation -->
+                        <ul class="nav navbar-nav">
+                            <li class="nav-item">
+                                <a href=".." class="nav-link">Home</a>
+                            </li>
+                            <li class="nav-item dropdown">
+                                <a href="#" class="nav-link dropdown-toggle active" aria-current="page" role="button" data-bs-toggle="dropdown"  aria-expanded="false">Projects</a>
+                                <ul class="dropdown-menu">
+                                    
+<li>
+    <a href="../Statistics_Genomics_High_Dimensional_Inference/" class="dropdown-item">Statistical Genomics and High Dimensional Inference</a>
+</li>
+                                    
+<li>
+    <a href="../Employee_Attrition_Prediction/" class="dropdown-item">Employee Attrition Prediction</a>
+</li>
+                                    
+<li>
+    <a href="../Programming_Language_Forecasting/" class="dropdown-item">Programming Language Forecasting</a>
+</li>
+                                    
+<li>
+    <a href="./" class="dropdown-item active" aria-current="page">Capital Bikeshare Prediction Analysis</a>
+</li>
+                                    
+<li>
+    <a href="../Capstone_PHIGHT_COVID/" class="dropdown-item">Master's Program Capstone - PHIGHT COVID</a>
+</li>
+                                    
+<li>
+    <a href="../DOND_Analysis/" class="dropdown-item">Dealer or No Deal Banker Analysis</a>
+</li>
+                                </ul>
+                            </li>
+                        </ul>
+
+                    <ul class="nav navbar-nav ms-md-auto">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-bs-toggle="modal" data-bs-target="#mkdocs_search_modal">
+                                <i class="fa fa-search"></i> Search
+                            </a>
+                        </li>
+                            <li class="nav-item">
+                                <a rel="prev" href="../Programming_Language_Forecasting/" class="nav-link">
+                                    <i class="fa fa-arrow-left"></i> Previous
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a rel="next" href="../Capstone_PHIGHT_COVID/" class="nav-link">
+                                    Next <i class="fa fa-arrow-right"></i>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="https://github.com/djmnason/djmnason.github.io/edit/master/docs/Capital_Bikeshare_Analysis/README.md" class="nav-link">Edit on djmnason/djmnason.github.io
+                                    </a>
+                            </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="row">
+                    <div class="col-md-3"><div class="navbar-expand-md bs-sidebar hidden-print affix" role="complementary">
+    <div class="navbar-header">
+        <button type="button" class="navbar-toggler collapsed" data-bs-toggle="collapse" data-bs-target="#toc-collapse" title="Table of Contents">
+            <span class="fa fa-angle-down"></span>
+        </button>
+    </div>
+
+    
+    <div id="toc-collapse" class="navbar-collapse collapse card bg-body-tertiary">
+        <ul class="nav flex-column">
+            
+            <li class="nav-item" data-bs-level="1"><a href="#capitol-bikeshare" class="nav-link">Capitol Bikeshare</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="2"><a href="#data-collection" class="nav-link">Data collection</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#exploration" class="nav-link">Exploration</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#modeling" class="nav-link">Modeling</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+        </ul>
+    </div>
+</div></div>
+                    <div class="col-md-9" role="main">
+
+<h1 id="capitol-bikeshare">Capitol Bikeshare</h1>
+<p>This repository contains my code and data used for predicting bike availability in Washington D.C. using the publicly available <a href="https://s3.amazonaws.com/capitalbikeshare-data/index.html">Capital Bikeshare</a> dataset. This was originally a project for my Master's program that I then completed on my own time and increasing the scale of the project. The final presentation can be found <a href="results/capital_bikeshare_presentation.pdf">here</a>.</p>
+<h2 id="data-collection">Data collection</h2>
+<p>The <a href="code/processing.ipynb">processing</a> notebook details the code that was used to collect the data from publicly available sources</p>
+<h2 id="exploration">Exploration</h2>
+<p>The <a href="code/exploration.ipynb">exploration</a> notebook shows the steps I took to explore the data and some written analysis about the decisions made based on this exploration.</p>
+<h3 id="activity">Activity</h3>
+<h4 id="over-time">Over time</h4>
+<p><img alt="year_month_activity" src="results/year_month_activity.png" /></p>
+<p><img alt="hourly_average_activity" src="results/hourly_average_activity.png" /></p>
+<p><img alt="hourly_activity_boxplot" src="results/hourly_activity_boxplot.png" /></p>
+<h4 id="geographically">Geographically</h4>
+<h5 id="arrivals">arrivals</h5>
+<p><img alt="arrivals_average_geo" src="results/arrivals_average_geo.png" /></p>
+<h5 id="departures">departures</h5>
+<p><img alt="departures_average_geo" src="results/departures_average_geo.png" /></p>
+<h2 id="modeling">Modeling</h2>
+<p>Based on the results of the exploration, I tested and evaluated multiple machine learning models using predictive modeling best practices including train-test splits, hyperparameter tuning, and cross-validation. The results of the modeling can be found <a href="code/modeling.ipynb">here</a>.</p>
+<h3 id="variable-relationships">Variable Relationships</h3>
+<p><img alt="correlation_heatmap" src="results/correlation_heatmap.png" /></p>
+<p><img alt="pairplot_quantitative" src="results/pairplot_quantitative.png" /></p>
+<h3 id="xgboost-modeling-results">XGBoost Modeling Results</h3>
+<p><img alt="feature_importances" src="results/model_feature_importances.png" /></p>
+<h4 id="errors">Errors</h4>
+<p><img alt="models_error_hist" src="results/models_error_hist.png" /></p>
+<p><img alt="arrivals_error_geo" src="results/arrivals_error_geo.png" /></p>
+<p><img alt="departures_error_geo" src="results/departures_error_geo.png" /></p></div>
+            </div>
+        </div>
+
+        <footer class="col-md-12">
+            <hr>
+            <p>Documentation built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
+        </footer>
+        <script src="../js/bootstrap.bundle.min.js"></script>
+        <script>
+            var base_url = "..",
+                shortcuts = {"help": 191, "next": 78, "previous": 80, "search": 83};
+        </script>
+        <script src="../js/base.js"></script>
+        <script src="../search/main.js"></script>
+
+        <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="searchModalLabel">Search</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>From here you can search these documents. Enter your search terms below.</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" placeholder="Search..." id="mkdocs-search-query" title="Type search term here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No results found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+
+    </body>
+</html>

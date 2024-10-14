@@ -1,0 +1,195 @@
+---
+title: "Map"
+author: "ZIYAN (OLIVIA) WANG"
+date: "4/20/2022"
+output: pdf_document
+---
+## This document is used to map general Ohio maps with different teaching posture
+## Author: Olivia Wang, 04/20/2022 ## Updated on 05/01/2022
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+## Set up aesthetic theme for all graphs generated in the report
+Sys.setlocale("LC_TIME", "English")
+library(ggrepel)
+library(tidyverse)
+library(lubridate)
+require(scales)
+library(readxl)
+library(ggpubr)
+library(PMCMRplus)
+require(DescTools)
+library(cowplot)
+library(sp)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(sqldf)
+```
+
+```{r}
+data <- read.csv('deaths_teaching_mobility_posture_pct.csv')
+
+data1 = data %>% select(county, cnty_lat, cnty_long, metropolitan_status, nchs_urban_rural_status, county_enroll, hybrid_start, online_only_start, on_premises_start, major_teaching_start) %>% distinct()
+
+data1$major_teaching <- sub("_", " ", data1$major_teaching)
+```
+
+```{r}
+op <-  sqldf('select county, on_premises_start as on_premises, cnty_lat, cnty_long
+                from data1')
+
+ol <-  sqldf('select county, online_only_start as online_only, cnty_lat, cnty_long
+                from data1')
+
+hy <-  sqldf('select county, hybrid_start as hybrid, cnty_lat, cnty_long
+                from data1')
+
+data2 = sqldf('select *
+              from data1
+              where nchs_urban_rural_status = "Micropolitan"
+              ')
+```
+
+```{r}
+# color blind friendly Palette
+library(ggthemes)
+col_theme <- c("Hybrid"="#009E73","On Premises"="#D55E00","Online Only"="#0072B2")
+## plot theme
+grid_theme <- theme(axis.line = element_line(colour = "black"),
+                    panel.grid.major = element_blank(),
+                    panel.grid.minor = element_blank(),
+                    panel.border = element_blank(),
+                    legend.key = element_blank(),
+                    panel.background = element_blank(),
+                    legend.box="vertical", legend.margin=margin())
+team_theme <- grid_theme+
+  theme(legend.text = element_text(size=18,family="Times New Roman"),
+        legend.title = element_text(size=18,family="Times New Roman"),
+        axis.text = element_text(size=20,family="Times New Roman"),
+        title=element_text(size=20,family="Times New Roman"),
+        strip.text.x = element_text(size = 20, face = "bold",family="Times New Roman"))
+
+map_theme <-   theme(legend.position = "right",
+                     legend.text = element_text(size=18,family="Times New Roman"),
+                     legend.title = element_text(size=18,family="Times New Roman"),
+                     legend.key = element_rect(size = 3),
+                     legend.key.height = unit(1, "cm"),
+                     legend.key.width = unit(1, "cm"))
+
+ohio_map <- map_data("county") %>%subset(region=="ohio")%>%
+  mutate(county=toupper(subregion))%>%select(long,lat,county,group)
+```
+
+```{r warning=FALSE}
+# major teaching map
+ohio_map <- map_data("county") %>%subset(region=="ohio")%>%
+  mutate(county=toupper(subregion))%>%select(long,lat,county,group)
+
+teach_map <-data1%>%
+  left_join(ohio_map,by='county')%>%
+  ggplot() + geom_polygon(aes(x = long, y = lat, 
+                              group = group, fill = as.factor(major_teaching)), 
+                          color = "white", alpha=0.9) + 
+  coord_fixed(1.3) + theme_map() + 
+  scale_fill_manual(values=col_theme)+ 
+  labs(fill='Majority Teaching\nPosture')+map_theme
+
+teach_map
+```
+
+```{r warning=FALSE}
+ohio_map <- map_data("county") %>%subset(region=="ohio")%>%
+  mutate(county=toupper(subregion))%>%select(long,lat,county,group)
+
+# Map of proportion of students taking online-only classes
+online_map <- ol%>%
+  left_join(ohio_map,by='county')%>%
+  mutate(online_only= online_only*100)%>%
+  ggplot() + 
+  geom_polygon(aes(x = long, y = lat, group = group, fill = online_only), color = "gray") + 
+  coord_fixed(1.3) + theme_map() +
+  scale_fill_distiller(palette = "Blues",direction = 1)+
+  labs(fill='% Students Online')+map_theme
+
+online_map
+```
+
+```{r warning=FALSE}
+# Map of proportion of students taking hybrid classes
+hybrid_map <- hy%>%
+  left_join(ohio_map,by='county')%>%
+  mutate(hybrid= hybrid*100)%>%
+  ggplot() + 
+  geom_polygon(aes(x = long, y = lat, group = group, fill = hybrid), color = "gray") + 
+  coord_fixed(1.3) + 
+  theme_map() +
+  scale_fill_distiller(palette = "Greens",direction = 1)+
+  labs(fill='% Students Hybrid')+map_theme
+
+hybrid_map
+```
+
+```{r warning=FALSE}
+# Map of proportion of students taking on-premises classes
+onpremise_map <- op%>%
+  left_join(ohio_map,by='county')%>%
+  mutate(on_premises= on_premises*100)%>%
+  ggplot() + 
+  geom_polygon(aes(x = long, y = lat, group = group, fill = on_premises), color = "gray") + 
+  coord_fixed(1.3) + theme_map() +
+  scale_fill_distiller(palette = "OrRd",direction = 1)+
+  labs(fill='% Students On Premises')+map_theme
+
+onpremise_map
+```
+
+```{r}
+pic12 <- arrangeGrob(online_map, 
+                     top = textGrob("B.", x = unit(0, "npc")
+                                    , y   = unit(1, "npc"), just=c("left","top"),
+                                    gp=gpar(fontface="bold",col="black", fontsize=22, fontfamily="Times Roman")))
+
+pic11 <- arrangeGrob(onpremise_map, 
+                     top = textGrob("A.", x = unit(0, "npc")
+                                    , y = unit(1, "npc"), just=c("left","top"),
+                                    gp=gpar(fontface="bold",col="black", fontsize=22, fontfamily="Times Roman")))
+
+pic13 <- arrangeGrob(hybrid_map, 
+                     top = textGrob("C.", x = unit(0, "npc")
+                                    , y  = unit(1, "npc"), just=c("left","top"),
+                                    gp=gpar(fontface="bold",col="black", fontsize=22, fontfamily="Times Roman")))
+
+pic14 <- arrangeGrob(teach_map, 
+                     top = textGrob("D.", x = unit(0, "npc")
+                                    , y = unit(1, "npc"), just=c("left","top"),
+                                    gp=gpar(fontface="bold",col="black", fontsize=22, fontfamily="Times Roman")))
+
+## graph 1
+fig1 <- grid.arrange(pic11, pic12, pic13, pic14, ncol = 2)
+
+ggsave("Figure1.png",fig1,height = 7,width = 13)
+```
+
+
+```{r warning=FALSE}
+# Map of major teaching map with only micro counties
+ohio_map <- map_data("county") %>%subset(region=="ohio")%>%
+  mutate(county=toupper(subregion))%>%select(long,lat,county,group)
+
+teach_map <-data2%>%
+  left_join(ohio_map,by='county')%>%
+  ggplot() + geom_polygon(aes(x = long, y = lat, 
+                              group = group, fill = as.factor(major_teaching)), 
+                          color = "gray", alpha=0.9) + 
+  coord_fixed(1.3) + theme_map() + 
+  scale_fill_manual(values=col_theme)+ 
+  labs(fill='Majority Teaching\nPosture')+map_theme
+
+teach_map
+```
+

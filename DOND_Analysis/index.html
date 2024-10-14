@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        <meta name="author" content="Daniel Nason">
+        <link rel="canonical" href="https://djmnason.github.io/DOND_Analysis/">
+        <link rel="shortcut icon" href="../img/favicon.ico">
+        <title>Dealer or No Deal Banker Analysis - My Docs</title>
+        <link href="../css/bootstrap.min.css" rel="stylesheet">
+        <link href="../css/fontawesome.min.css" rel="stylesheet">
+        <link href="../css/brands.min.css" rel="stylesheet">
+        <link href="../css/solid.min.css" rel="stylesheet">
+        <link href="../css/v4-font-face.min.css" rel="stylesheet">
+        <link href="../css/base.css" rel="stylesheet">
+        <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" >
+        <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css" disabled>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script>hljs.highlightAll();</script> 
+    </head>
+
+    <body>
+        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-primary">
+            <div class="container">
+                <a class="navbar-brand" href="..">My Docs</a>
+                <!-- Expander button -->
+                <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar-collapse" aria-controls="navbar-collapse" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <!-- Expanded navigation -->
+                <div id="navbar-collapse" class="navbar-collapse collapse">
+                        <!-- Main navigation -->
+                        <ul class="nav navbar-nav">
+                            <li class="nav-item">
+                                <a href=".." class="nav-link">Home</a>
+                            </li>
+                            <li class="nav-item dropdown">
+                                <a href="#" class="nav-link dropdown-toggle active" aria-current="page" role="button" data-bs-toggle="dropdown"  aria-expanded="false">Projects</a>
+                                <ul class="dropdown-menu">
+                                    
+<li>
+    <a href="../Statistics_Genomics_High_Dimensional_Inference/" class="dropdown-item">Statistical Genomics and High Dimensional Inference</a>
+</li>
+                                    
+<li>
+    <a href="../Employee_Attrition_Prediction/" class="dropdown-item">Employee Attrition Prediction</a>
+</li>
+                                    
+<li>
+    <a href="../Programming_Language_Forecasting/" class="dropdown-item">Programming Language Forecasting</a>
+</li>
+                                    
+<li>
+    <a href="../Capital_Bikeshare_Analysis/" class="dropdown-item">Capital Bikeshare Prediction Analysis</a>
+</li>
+                                    
+<li>
+    <a href="../Capstone_PHIGHT_COVID/" class="dropdown-item">Master's Program Capstone - PHIGHT COVID</a>
+</li>
+                                    
+<li>
+    <a href="./" class="dropdown-item active" aria-current="page">Dealer or No Deal Banker Analysis</a>
+</li>
+                                </ul>
+                            </li>
+                        </ul>
+
+                    <ul class="nav navbar-nav ms-md-auto">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-bs-toggle="modal" data-bs-target="#mkdocs_search_modal">
+                                <i class="fa fa-search"></i> Search
+                            </a>
+                        </li>
+                            <li class="nav-item">
+                                <a rel="prev" href="../Capstone_PHIGHT_COVID/" class="nav-link">
+                                    <i class="fa fa-arrow-left"></i> Previous
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a rel="next" class="nav-link disabled">
+                                    Next <i class="fa fa-arrow-right"></i>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="https://github.com/djmnason/djmnason.github.io/edit/master/docs/DOND_Analysis/README.md" class="nav-link">Edit on djmnason/djmnason.github.io
+                                    </a>
+                            </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="row">
+                    <div class="col-md-3"><div class="navbar-expand-md bs-sidebar hidden-print affix" role="complementary">
+    <div class="navbar-header">
+        <button type="button" class="navbar-toggler collapsed" data-bs-toggle="collapse" data-bs-target="#toc-collapse" title="Table of Contents">
+            <span class="fa fa-angle-down"></span>
+        </button>
+    </div>
+
+    
+    <div id="toc-collapse" class="navbar-collapse collapse card bg-body-tertiary">
+        <ul class="nav flex-column">
+            
+            <li class="nav-item" data-bs-level="1"><a href="#deal-or-no-deal-analysis" class="nav-link">Deal or No Deal Analysis</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="2"><a href="#data-collection" class="nav-link">Data Collection</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#exploration-of-the-data" class="nav-link">Exploration of the data</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#modeling" class="nav-link">Modeling</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#game-simulator" class="nav-link">Game simulator</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+        </ul>
+    </div>
+</div></div>
+                    <div class="col-md-9" role="main">
+
+<h1 id="deal-or-no-deal-analysis">Deal or No Deal Analysis</h1>
+<p>This repository contains my code and data used to analyze game data from the American version of the TV show <a href="https://en.wikipedia.org/wiki/Deal_or_No_Deal_(American_game_show)">Deal or No Deal</a> that premiered on NBC in 2005. I also build a simple game simulator using a model created from the analysis. The project was motivated by my passion for the game and curiousity in investigating patterns that I saw watching the game show.</p>
+<h2 id="data-collection">Data Collection</h2>
+<p>Unfortunately, there wasn't a publicly available database from the show that collects data at the game-round-round turn level, and transcripts of the show did not have great audio quality to scrape and structure into formatted data. Therefore, I watched and recorded data on multiple games from seasons 1 through 3 (as of 4/30/2024) in order to guarantee data quality for the analysis. I also scraped episode metadata from IMDB to supplement my collection process; <a href="data/webscraping_and_metadata.ipynb">this notebook</a> generates the <a href="data/dond_episode_metadata.csv">data</a>.</p>
+<p>The <a href="https://en.wikipedia.org/wiki/Deal_or_No_Deal_(American_game_show)">Wikipedia</a> page linked provides in-depth instructions on how the game is played, so I will comment on the rules I followed to collect the data.</p>
+<p>1) The <a href="data/games.csv">games data</a> is collected at the game-round-round turn level in order to uniquely identify each decision made by the contestant during the game as well as interactions between them and the banker.
+2) There are indicator columns for: 1) if the game ended (player made decision), 2) when the decision was made, and 3) the value of the contestant's original case selection. These are 1 if true and null otherwise. Note that 1) a single game could have multiple indicators with a value of 1, i.e. if the contestant takes a deal instead of playing to the end of the game, versus 2) and 3) only have a single row per game where they can take on a value of 1.
+3) In the case that players do take a deal, depending on the state of the game (i.e. values left on the board) the host may continue to allow them to select cases. These can be found in the data as rows in the offer column that are not null when the game ended column indicator is 1. NOTE: in the case that the game ended AND the player had unopened cases AND the offer column is null in the data, do not assume that the contestant opened the cases in the order they appear in the data. That is, the game will usually reveal the values in each case at the end of the game, and I entered these based on the ascending order of the case NUMBERS (not values) for completeness. If you do decide to look at the data, please keep in mind that these are likely invalid rows.
+4) There is exactly one row per game where the <em>winnings</em> column is not null, and it corresponds with the row where the <em>decision_made</em> indicator is 1.
+5) There are techincally only 9 rounds in which the player can receive an offer from the banker, as you will see in the data. In the case that the player refuses every offer, they have the choice of choosing between their original selection and the one remaining case. To account for this in the data, I have encoded round 10 as the player staying with their own case, and round 11 as the player switching cases. In every game the rows associated with these rounds will have null values for offers. In all the games I watched, no one decided to switch to the last remaining case.
+6) For simplicity in later analyses, I only collected data on games that have the 'standard' case values, which you can find <a href="data/case_values.csv">here</a>. I did not collect data on any special occassions where the board was different than usual or the case values could not be easily mapped back to their standard case value equivalents.</p>
+<p>With these rules I attempt to make a well-defined dataset that permit me more exploration and analysis of the data. I also collect demographic data on the <a href="data/contestants.csv">contestants</a> for completeness, although I do not explore the data any further with these variables.</p>
+<h2 id="exploration-of-the-data">Exploration of the data</h2>
+<p>While the rules of the data collection are well-defined, additional processing is required in order to manipulate it into a shape suitable for my analysis. I use this <a href="data/data_processing.ipynb">notebook</a> to generate the <a href="data/dond_processed_data.csv">processed data</a> that is used for both data exploration and modeling. The <a href="modeling/exploration.ipynb">exploration notebook</a> goes into detail on the results of my EDA of the data and rationale for model selection, but I include some interesting visualizations based on my exploratory data analysis.</p>
+<h3 id="winnings">Winnings</h3>
+<p><img alt="contestant_winnings_distribution" src="modeling/contestant_winnings.png" /></p>
+<h3 id="offers">Offers</h3>
+<p><img alt="offers_by_round_and_season" src="modeling/offers_by_round_season.png" /></p>
+<p><img alt="offers_average_ratio_by_round" src="modeling/offer_avg_ratio.png" /></p>
+<p><img alt="offers_vs_remaining_avg_by_round" src="modeling/offer_avg_lm.png" /></p>
+<h2 id="modeling">Modeling</h2>
+<p>Based on the results of my exploration, I build multiple models in the <a href="modeling/modeling.ipynb">modeling notebook</a> and evaluate their performance based on out of sample data. The notebook goes more in-depth about model selection, although I ultimately decide to choose a linear model based on the exploration from the previous section as my preferred model of choice due to its interpretability and relatively strong performance compared to other machine learning models. The <a href="modeling/lm_results.tex">latex</a> can be found here, and I also include goodness of fit visuals.</p>
+<p><img alt="qqplot" src="modeling/qq_plot.png" /></p>
+<p><img alt="fitted_vs_residuals" src="modeling/res_v_fit.png" /></p>
+<h2 id="game-simulator">Game simulator</h2>
+<p>Finally, I finish the project by creating a simulator of the Deal or No Deal game that can be run in the terminal using the files within the <a href="./game">game</a> directory. I include a screenshot below of a player UI for the game. As described in the <a href="modeling/modeling.ipynb">modeling notebook</a>, I end up creating a model that randomly samples the game data rather than using the linear model due to the quirkiness of the predictions generated by the model in some edge cases (i.e. negative offers). Feel free to try it out on your own!</p>
+<p><img alt="sample_screenshot" src="game/sample_game_screenshot.png" /></p></div>
+            </div>
+        </div>
+
+        <footer class="col-md-12">
+            <hr>
+            <p>Documentation built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
+        </footer>
+        <script src="../js/bootstrap.bundle.min.js"></script>
+        <script>
+            var base_url = "..",
+                shortcuts = {"help": 191, "next": 78, "previous": 80, "search": 83};
+        </script>
+        <script src="../js/base.js"></script>
+        <script src="../search/main.js"></script>
+
+        <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="searchModalLabel">Search</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>From here you can search these documents. Enter your search terms below.</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" placeholder="Search..." id="mkdocs-search-query" title="Type search term here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No results found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+
+    </body>
+</html>

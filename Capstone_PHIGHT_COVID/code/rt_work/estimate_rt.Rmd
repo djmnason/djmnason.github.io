@@ -1,0 +1,605 @@
+---
+title: "estimate_R"
+author: "Hongsheng Xie"
+date: "3/28/2022"
+# updated by Hongsheng Xie 5/1/2022
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(EpiEstim)
+library(dplyr)
+library(ggplot2)
+library(epitrix)
+```
+
+# Calculate the parameters of delayed gamma distribution from infection to death.
+```{r}
+gamma_mucv2shapescale(mu = 23.9, cv = 0.4)
+# mean = 23.9, sd = 9.56, α = 6.25, β = 3.824
+```
+
+# Data processing
+```{r}
+series.data <- read.csv("C:/Users/danie/Desktop/CMU/Statistical Practice/deaths_teaching_mobility_posture.csv")
+
+# Correct death data with value less than 0
+series.data$rev_newdeaths <- as.integer(round(ifelse(series.data$rev_newdeaths<0, 0, series.data$rev_newdeaths),digits=0))
+
+# Correct confirmed data with value less than 0
+series.data$rev_newconfirmed2 <- as.integer(round(ifelse(series.data$rev_newconfirmed2<0, 0, series.data$rev_newconfirmed2), digits=0))
+
+# Select the interval start at 2020.6.1
+series.data.R <- series.data[11267:33599+27,]
+```
+
+# Calculate estimate R_t from death and case for top 9 popular counties in Ohio
+```{r, warning = FALSE, message = FALSE}
+new_data = data.frame(county=character(), window=numeric(), date=character(), R.deaths=numeric(), R.deaths10=numeric(), R.cases=numeric())
+county = c("BUTLER","CUYAHOGA","FRANKLIN","HAMILTON","LAKE","LORAIN","LUCAS","MONTGOMERY","STARK","SUMMIT")
+
+# Go through counties
+for (c in county) {
+  # Select the date, deaths, and cases columns from the dataset
+  c.data <- dplyr::filter(series.data.R, county==c)[,c(2,12,14)]
+  
+  # death_scaled equals to 10 times of deaths. It is used to check if a simple change in scale will affect the estimation of Rt.
+  c.data$death_scaled <- (c.data$rev_newdeaths)*10
+  
+  # estimate Rt for each county using time series of deaths
+  config.d = make_config(incid = c.data$rev_newdeaths, 
+                         t_start = c(2:(nrow(c.data)-6)),
+                         t_end = c(8:(nrow(c.data))),
+                         method="non_parametric_si", 
+                         si_distr = dgamma(0:100,shape = 6.25, scale = 3.824))
+  R.d <- estimate_R(incid=c.data$rev_newdeaths, 
+                    method="non_parametric_si", 
+                    config=config.d)
+  # estimate Rt for each county using time series of scaled deaths
+  config.d_sc = make_config(incid = c.data$death_scaled, 
+                         t_start = c(2:(nrow(c.data)-6)),
+                         t_end = c(8:(nrow(c.data))),
+                         method="non_parametric_si", 
+                         si_distr = dgamma(0:100,shape = 6.25, scale = 3.824))
+  
+  R.d_sc <- estimate_R(incid=c.data$death_scaled, 
+                       method="non_parametric_si", 
+                       config=config.d_sc)
+  
+  # estimate Rt for each county using time series of cases
+  config.c = make_config(incid = c.data$rev_newconfirmed2, 
+                          t_start = c(2:(nrow(c.data)-6)),
+                          t_end = c(8:(nrow(c.data))),
+                          method="non_parametric_si", 
+                          si_distr = dgamma(0:100,shape = (1/0.6)^2, 
+                                            scale = (15.2*(0.6^2))))
+  
+  R.c <- estimate_R(incid=c.data$rev_newconfirmed2, 
+                     method="non_parametric_si", 
+                     config=config.c)
+  
+  # aggregate Rt from death, scaled death, and case with their 95% condifance interval to a dataset
+  counties.R <- data.frame(county = rep(c,times=length(R.d$R$`Mean(R)`)),
+                           date = c.data$date[8:length(c.data$date)], 
+                           R.deaths = R.d$R$`Mean(R)`,
+                           R.deaths10 = R.d_sc$R$`Mean(R)`,
+                           R.deaths.q2.5 = R.d$R$`Quantile.0.025(R)`, 
+                           R.deaths.q97.5 = R.d$R$`Quantile.0.975(R)`,
+                           R.cases = R.c$R$`Mean(R)`,
+                           R.cases.q2.5 = R.c$R$`Quantile.0.025(R)`, 
+                           R.cases.q97.5 = R.c$R$`Quantile.0.975(R)`
+                           )
+    
+  new_data <- rbind(new_data, counties.R)
+}  
+```
+
+# Create a time series object
+```{r}
+library(hrbrthemes)
+new_data <- merge(series.data.R, new_data, by=c("county","date")) 
+
+new_data$date <- as.Date(new_data$date)
+```
+
+# Plot time series of Rt.
+```{r}
+c = "BUTLER"
+d <- dplyr::filter(new_data, county==c)
+
+# Plot Rt from death and case in Bulter
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of",c,"with window equal to 7 days"))
+
+c = "CUYAHOGA"
+d <- dplyr::filter(new_data, county==c)
+
+# Plot Rt from death and case in Cuyahoga
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of",c,"with window equal to 7 days"))
+
+c = "HAMILTON"
+d <- dplyr::filter(new_data, county==c)
+
+# Plot Rt from death and case in Hamilton
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of",c,"with window equal to 7 days"))
+
+c = "SUMMIT"
+d <- dplyr::filter(new_data, county==c)
+# Plot Rt from death and case in Summit
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of",c,"with window equal to 7 days"))
+
+c = "MONTGOMERY"
+d <- dplyr::filter(new_data, county==c)
+# Plot Rt from death and case in Montgomery
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of",c,"with window equal to 7 days"))
+
+c = "LUCAS"
+d <- dplyr::filter(new_data, county==c)
+# Plot Rt from death and case in Lucas
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of",c,"with window equal to 7 days"))
+
+c = "STARK"
+d <- dplyr::filter(new_data, county==c)
+# Plot Rt from death and case in Stark
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of",c,"with window equal to 7 days"))
+
+c = "LORAIN"
+d <- dplyr::filter(new_data, county==c)
+# Plot Rt from death and case in Lorain
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of",c,"with window equal to 7 days"))
+
+c = "LAKE"
+d <- dplyr::filter(new_data, county==c)
+# Plot Rt from death and case in Lake
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of",c,"with window equal to 7 days"))
+```
+
+# Calculate estimate Rt from death and case in counties with different postures
+```{r, warning = FALSE, message = FALSE}
+new_data2 = data.frame(county=character(), window=numeric(), date=character(), R.deaths=numeric(), R.deaths10=numeric(),R.case2=numeric())
+
+teach_post = unique(series.data$major_teaching)
+
+# Go through 3 different teaching postures
+for (t in teach_post) {
+  t.data <- filter(series.data.R, major_teaching==t)[,c(2,12,14)]
+  
+  # aggregate the number of death on date
+  teach_post_d <- t.data %>%
+    group_by(date) %>% 
+    summarise(teach_death = sum(rev_newdeaths))
+  teach_post_d$death_scaled <- (teach_post_d$teach_death)*10
+  
+  # aggregate the number of case on date
+  teach_post_c <- t.data %>%
+    group_by(date) %>% 
+    summarise(teach_case = sum(rev_newconfirmed2))
+
+  # estimate Rt for each teaching posture using time series of deaths
+  config.d = make_config(incid = teach_post_d$teach_death, 
+                         t_start = c(2:(nrow(c.data)-6)),
+                         t_end = c(8:(nrow(c.data))),
+                         method="non_parametric_si", 
+                         si_distr = dgamma(0:100,shape = 6.25, scale = 3.824))
+  R.d <- estimate_R(incid=teach_post_d$teach_death, 
+                    method="non_parametric_si", 
+                    config=config.d)
+
+  # estimate Rt for each teaching posture using time series of scaled deaths
+  config.d_sc = make_config(incid = teach_post_d$death_scaled, 
+                         t_start = c(2:(nrow(c.data)-6)),
+                         t_end = c(8:(nrow(c.data))),
+                         method="non_parametric_si", 
+                         si_distr = dgamma(0:100,shape = 6.25, scale = 3.824))
+  R.d_sc <- estimate_R(incid=teach_post_d$death_scaled, 
+                       method="non_parametric_si", 
+                       config=config.d_sc)
+  
+  # estimate Rt for each teaching posture using time series of cases
+  config.c = make_config(incid = teach_post_c$teach_case, 
+                          t_start = c(2:(nrow(c.data)-6)),
+                          t_end = c(8:(nrow(c.data))),
+                          method="non_parametric_si", 
+                          si_distr = dgamma(0:100,shape = (1/0.6)^2, 
+                                            scale = (15.2*(0.6^2))))
+  
+  R.c <- estimate_R(incid=teach_post_c$teach_case, 
+                     method="non_parametric_si", 
+                     config=config.c)
+  
+  # aggregate Rt from death, scaled death, and case with their 95% condifance interval to a dataset
+  teach_post.R <- data.frame(posture = rep(t,times=length(R.d$R$`Mean(R)`)),
+                           date = teach_post_d$date[8:length(teach_post_d$date)], 
+                           R.deaths = R.d$R$`Mean(R)`,
+                           R.deaths10 = R.d_sc$R$`Mean(R)`,
+                           R.deaths.q2.5 = R.d$R$`Quantile.0.025(R)`, 
+                           R.deaths.q97.5 = R.d$R$`Quantile.0.975(R)`,
+                           R.cases = R.c$R$`Mean(R)`,
+                           R.cases.q2.5 = R.c$R$`Quantile.0.025(R)`, 
+                           R.cases.q97.5 = R.c$R$`Quantile.0.975(R)`
+                           )
+    
+  new_data2 <- rbind(new_data2, teach_post.R)
+}
+```
+
+```{r}
+new_data2$date <- as.Date(new_data2$date)
+```
+
+```{r}
+p = "Hybrid"
+d <- dplyr::filter(new_data2, posture==p)
+# Plot Rt from death and case for Hybrid teaching posture
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of",p,"with window equal to 7 days"))
+
+p = "On Premises"
+d <- dplyr::filter(new_data2, posture==p)
+# Plot Rt from death and case for On Premises teaching posture
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of",p,"with window equal to 7 days"))
+
+p = "Online Only"
+d <- dplyr::filter(new_data2, posture==p)
+# Plot Rt from death and case for Online Only teaching posture
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of",p,"with window equal to 7 days"))
+
+# Plot Rt from death for three different teaching posture
+ggplot(data = new_data2,aes(x=date,y=R.deaths,group = posture,
+                           colour=as.factor(posture))) + 
+  geom_line() + 
+  ggtitle("Rt time series from death for three different teaching posture with window equal to 7 days")
+
+# Plot Rt from case for three different teaching posture
+ggplot(data = new_data2,aes(x=date,y=R.cases,group = posture,
+                           colour=as.factor(posture))) + 
+  geom_line() + 
+  ggtitle("Rt time series from case for three different teaching posture with window equal to 7 days")
+```
+
+# Calculate estimate Rt of the top 3 popular counties for each teaching posture
+```{r}
+new_data3 = data.frame(county=character(), window=numeric(), date=character(), R.deaths=numeric(), R.deaths10=numeric(),R.cases=numeric())
+teach_post <- unique(series.data.R$major_teaching_end)
+
+# Go through the major teaching posture
+for (t in teach_post) {
+  
+  # Select all data with a specific teaching posture
+  t.data <- dplyr::filter(series.data.R,major_teaching_end==t)[,c(2,3,7,12,14,39)]
+  
+  # Get all counties with that teaching posture as majority
+  county_post <- unique(t.data$county)
+  max1 = 0
+  max2 = 0
+  max3 = 0
+  big1 = ""
+  big2 = ""
+  big3 = ""
+  
+  # Go through all teaching posture
+  for (c in county_post) {
+    c.data <- filter(t.data, county==c)
+    
+    # Population of this county is larger than that of currenlt third popular county
+    if (c.data$population[1] > max3) {
+      max3 <- c.data$population[1]
+      big3 <- c
+    }
+    
+    # This county is more popular than the most popular county
+    if (max3 > max1) {
+      tmp_p <- max3
+      tmp_c <- big3
+      max3 <- max2
+      big3 <- big2
+      max2 <- max1
+      big2 <- big1
+      max1 <- tmp_p
+      big1 <- tmp_c
+    # This county less popular than the most popular county but more popular than the 2nd popular county
+    } else if (max3 > max2) {
+      tmp_p <- max3
+      tmp_c <- big3
+      max3 <- max2
+      big3 <- big2
+      max2 <- tmp_p
+      big2 <- tmp_c
+    }
+  }
+  
+  # Select the data for the top 3 counties
+  t_popCounty <- filter(t.data, county==big1 
+                        | county==big2
+                        | county==big3)
+  
+  # Aggregate the number of deaths for each day
+  teach_post_d <- t_popCounty %>%
+    group_by(date) %>% 
+    summarise(teach_death = sum(rev_newdeaths))
+  
+  # Aggregate the number of cases for each day
+  teach_post_c <- t_popCounty %>%
+    group_by(date) %>% 
+    summarise(teach_case = sum(rev_newconfirmed2))
+  
+  # estimate Rt for each teaching posture using time series of deaths
+  config.d = make_config(incid = teach_post_d$teach_death, 
+                         t_start = c(2:(nrow(teach_post_d)-6)),
+                         t_end = c(8:(nrow(teach_post_d))),
+                         method="non_parametric_si", 
+                         si_distr = dgamma(0:100,shape = 6.25, scale = 3.824))
+  R.d <- estimate_R(incid=teach_post_d$teach_death, 
+                    method="non_parametric_si", 
+                    config=config.d)
+  
+  # estimate Rt for each teaching posture using time series of scaled deaths
+  teach_post_d$death_scaled <- (teach_post_d$teach_death)*10
+
+  config.d_sc = make_config(incid = teach_post_d$death_scaled, 
+                         t_start = c(2:(nrow(teach_post_d)-6)),
+                         t_end = c(8:(nrow(teach_post_d))),
+                         method="non_parametric_si", 
+                         si_distr = dgamma(0:100,shape = 6.25, scale = 3.824))
+  
+  R.d_sc <- estimate_R(incid=teach_post_d$death_scaled, 
+                       method="non_parametric_si", 
+                       config=config.d_sc)
+  
+  # estimate Rt for each teaching posture using time series of cases
+  config.case2 = make_config(incid = teach_post_c$teach_case, 
+                         t_start = c(2:(nrow(teach_post_c)-6)),
+                         t_end = c(8:(nrow(teach_post_c))),
+                         method="non_parametric_si", 
+                         si_distr = dgamma(0:100,shape = 2.78, scale = 3.672))
+  
+  R.case2 <- estimate_R(incid=teach_post_c$teach_case, 
+                       method="non_parametric_si", 
+                       config=config.case2)
+  
+  # combine Rt from death, scaled death, and case with their 95% condifance intervals to a dataset
+  teach_post.R <- data.frame(teach_post = rep(t,times=length(R.d$R$`Mean(R)`)),
+                             date=teach_post_d$date[8:length(teach_post_d$date)],
+                             R.deaths = R.d$R$`Mean(R)`,
+                             R.deaths10 = R.d_sc$R$`Mean(R)`,
+                             R.deaths.q2.5 = R.d$R$`Quantile.0.025(R)`, 
+                             R.deaths.q97.5 = R.d$R$`Quantile.0.975(R)`,
+                             R.cases = R.case2$R$`Mean(R)`,
+                             R.cases.q2.5 = R.case2$R$`Quantile.0.025(R)`, 
+                             R.cases.q97.5 = R.case2$R$`Quantile.0.975(R)`)
+    
+  new_data3 <- rbind(new_data3, teach_post.R)
+}  
+```
+
+```{r}
+new_data3$date <- as.Date(new_data3$date)
+
+p <- "Hybrid"
+d <- dplyr::filter(new_data3, teach_post==p)
+
+# Plot Rt from death and case for top 3 popular On Premises teaching posture
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of top 3 counties with posture ",p," with window 7"))
+
+p <- "On_Premises"
+d <- dplyr::filter(new_data3, teach_post==p)
+# Plot Rt from death and case for top 3 popular On Premises teaching posture
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of top 3 counties with posture ",p," with window 7"))
+
+p <- "Online_Only"
+d <- dplyr::filter(new_data3, teach_post==p)
+# Plot Rt from death and case for top 3 popular Online Only teaching posture
+ggplot(d, aes(x=date,y=R.deaths)) + 
+  theme_classic()+
+  geom_rect(aes(xmin = as.Date("2020-08-15"),xmax = as.Date("2020-12-15"),ymin=-Inf,ymax=Inf),alpha=0.1,colour="grey",fill="grey")+
+  geom_line(aes(y = R.deaths), color = "red") + 
+  geom_line(aes(y = R.cases), color="blue") +
+  geom_ribbon(aes(ymin=R.deaths.q2.5,ymax=R.deaths.q97.5), fill="#FF9999", alpha=0.5) +
+  geom_ribbon(aes(ymin=R.cases.q2.5,ymax=R.cases.q97.5), fill="#99FFFF", alpha=0.5) +
+  ylim(0,10)+
+  
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle(paste("Estimate Rt from death(red) and case(blue) of top 3 counties with posture ",p," with window 7"))
+
+# Plot Rt from death for top 3 popular for each major teaching posture
+ggplot(data = new_data3,aes(x=date,y=R.deaths,group = teach_post,
+                           colour=as.factor(teach_post))) + 
+  geom_line() + 
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle("Rt from death for top 3 counties in each posture with 7 days as window")
+
+# Plot Rt from scaled death for top 3 popular for each major teaching posture
+ggplot(data = new_data3,aes(x=date,y=R.deaths10,group = teach_post,
+                           colour=as.factor(teach_post))) + 
+  geom_line() + 
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle("Rt from scaled death for top 3 counties in each posture with 7 days as window")
+
+# Plot Rt from case for top 3 popular for each major teaching posture
+ggplot(data = new_data3,aes(x=date,y=R.cases,group = teach_post,
+                           colour=as.factor(teach_post))) + 
+  geom_line() +
+  labs(
+      x="Date",
+      y="R_t") +
+  ggtitle("Rt from case for top 3 counties in each posture with 7 days as window")
+```
+
+

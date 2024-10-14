@@ -1,0 +1,765 @@
+---
+title: "R_t Plots"
+author: "Daniel Nason"
+date: "4/18/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# PHIGHT COVID Capstone Project
+
+This file generates some of the visualizations used for the final presentation, focusing primarily on changes in R_t during the start of the semester.
+
+## Data and Library loads
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(ggh4x)
+library(EpiEstim)
+library(kableExtra)
+library(janitor)
+library(latex2exp)
+library(tidyverse)
+# update this for where the data is in your code
+slope_df_plotter <- read.csv("C:/Users/Owner/CMU/Spring/PHIGHT_COVID/rt_plotting_df.csv")
+```
+
+## Work for how the data for the plots are calculated
+
+### can skip this and directly jump down to plots using loaded in dataframe if available
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+series.data <- read.csv("C:/Users/Owner/CMU/Spring/PHIGHT_COVID/deaths_teaching_mobility_posture_pct.csv")
+
+series.data <- series.data %>%
+  mutate(
+    rev_newconfirmed2 = as.integer(round(ifelse(series.data$rev_newconfirmed2<0, 0, series.data$rev_newconfirmed2), digits=0)),
+    date = as.Date(date),
+    major_teaching_start = as.factor(major_teaching_start),
+    county = as.factor(county),
+    metropolitan_status = as.factor(metropolitan_status),
+    nchs_urban_rural_status = as.factor(nchs_urban_rural_status),
+    major_teaching_end = as.factor(major_teaching_end)
+  ) %>% 
+  clean_names()
+#write_csv(series.data, 'deaths_teaching_mobility_posture_pct.csv')
+```
+
+## generating R_t data
+
+```{r warning=FALSE}
+new_data <- data.frame(county=character(), date=character(), 
+                      R.deaths=numeric(), R.deaths.q2.5=numeric(), R.deaths.q97.5=numeric(),
+                      R.cases=numeric(), R.cases.q2.5=numeric(), R.cases.q97.5=numeric())
+for (c in unique(series.data$county)) {
+  c.data <- series.data %>% 
+    filter(county == c) %>% 
+    select(c(2,12,14))
+  
+  # estimate Rt for each county using time series of deaths:
+  config.d = make_config(incid = c.data$rev_newdeaths, t_start = c(2:(nrow(c.data)-13)),
+                         t_end =  c(15:nrow(c.data)), method="non_parametric_si", 
+                         si_distr=dgamma(0:1000, shape=(1/0.4)^2, rate=1/(23.9*(0.4^2)))) ## Gamma(mean=23.9, coefficient of variation=0.4)
+  R.d <- estimate_R(incid=c.data$rev_newdeaths, method="non_parametric_si", config=config.d)
+  
+  # estimate Rt for each county using time series of cases:
+  config.c = make_config(incid = c.data$rev_newconfirmed2, 
+                         method="non_parametric_si", t_start = c(2:(nrow(c.data)-13)),
+                         t_end =  c(15:nrow(c.data)),
+                         si_distr=dgamma(0:1000, shape=(1/0.6)^2, rate=1/(15.2*(0.6^2)))) ## Gamma(mean=10.2+5, coefficient of variation=0.6)
+  R.c <- estimate_R(incid=c.data$rev_newconfirmed2, method="non_parametric_si", config=config.c)
+  
+  counties.R <- data.frame(county = rep(c,times=length(R.d$R$`Mean(R)`)),date = c.data$date[15:length(c.data$date)], 
+                           R.deaths = R.d$R$`Mean(R)`, R.deaths.q2.5 = R.d$R$`Quantile.0.025(R)`, R.deaths.q97.5 = R.d$R$`Quantile.0.975(R)`,
+                           R.cases = R.c$R$`Mean(R)`, R.cases.q2.5 = R.c$R$`Quantile.0.025(R)`, R.cases.q97.5 = R.c$R$`Quantile.0.975(R)`)
+  new_data <- rbind(new_data, counties.R)
+}
+
+r_t_data <- left_join(
+  series.data, new_data, by = c('date' = 'date', 'county' = 'county')) %>% 
+  mutate(date = as.Date(date))
+
+tmp_semester_data <- r_t_data %>%
+  select(date, county, R.deaths, R.cases) %>% 
+  filter(date %in% seq(as.Date('2020-09-15'), by = 'days', length.out = 42))
+
+```
+
+Using the EpiEstim package, the effective reproductive rate is estimated from both the cases and deaths time series. The parameters used to estimate the delay distributions when calculating R_t from these series are based on literature, and the result is a data frame with R_t estimates for mean and a 95% confidence interval.
+
+The data is filtered down to include only days from the start of the semester (9-15-2020) for two three-week intervals. These will be used to measure how R_t changes over the beginning of the semester based on teach posture.
+
+### slope data frame
+
+```{r}
+## slope scatter plot code
+slope_df <- data.frame(county = character(),
+                       Rt_cases_slope_first_3_weeks = numeric(),
+                       Rt_cases_slope_next_3_weeks = numeric(),
+                       Rt_deaths_slope_first_3_weeks = numeric(),
+                       Rt_deaths_slope_next_3_weeks = numeric())
+
+for (c in unique(series.data$county)){
+  # filter data
+  tmp <- tmp_semester_data %>% filter(county == c & date %in% seq(as.Date('2020-09-15'), by = 'days', length.out = 21))
+  # fit linear trend for weeks of interest and extract slope
+  slope_0_3_case <- ((lm(R.cases ~ time(tmp %>% select(date) %>% pull()),
+               data = tmp)) %>% coef())[[2]]
+  slope_0_3_death <- ((lm(R.deaths ~ time(tmp %>% select(date) %>% pull()),
+                         data = tmp)) %>% coef())[[2]]
+  tmp <- tmp_semester_data %>% filter(county == c & date %in% seq(as.Date('2020-10-06'), by = 'days', length.out = 21))
+  # fit linear trend for weeks of interest and extract slope
+  slope_3_6_case <- ((lm(R.cases ~ time(tmp %>% select(date) %>% pull()),
+                         data = tmp)) %>% coef())[[2]]
+  slope_3_6_death <- ((lm(R.deaths ~ time(tmp %>% select(date) %>% pull()),
+                          data = tmp)) %>% coef())[[2]]
+  tmp_df <- data.frame(county = c,
+                       Rt_cases_slope_first_3_weeks = slope_0_3_case,
+                       Rt_cases_slope_next_3_weeks = slope_3_6_case,
+                       Rt_deaths_slope_first_3_weeks = slope_0_3_death,
+                       Rt_deaths_slope_next_3_weeks = slope_3_6_death)
+  slope_df <- rbind(slope_df, tmp_df)
+}
+
+slope_df_plotter <- inner_join(slope_df,
+          (r_t_data %>%
+             select(
+               county, population, population_density, metropolitan_status,
+               nchs_urban_rural_status, major_teaching_start, hybrid_start,
+               on_premises_start, online_only_start, other_start, unknown_start, major_teaching_end)
+           ) %>%
+            distinct(),
+          by = c('county' = 'county')) %>% 
+  inner_join(
+    r_t_data %>%
+               group_by(county) %>%
+               summarise(mean_mobility = mean(full_work_prop_7d)
+                         ),
+             by = c('county' = 'county')
+  ) %>%
+  rename(
+    deaths_slope_week_1_3 = Rt_deaths_slope_first_3_weeks,
+    deaths_slope_week_4_6 = Rt_deaths_slope_next_3_weeks,
+    cases_slope_week_1_3 = Rt_cases_slope_first_3_weeks,
+    cases_slope_week_4_6 = Rt_cases_slope_next_3_weeks
+    )
+
+# reordering the dataframe for ease of plotting
+slope_df_plotter <- slope_df_plotter %>%
+  select(county, Rt_cases_slope_first_3_weeks, Rt_cases_slope_next_3_weeks,
+         Rt_deaths_slope_first_3_weeks, Rt_deaths_slope_next_3_weeks, hybrid_start,
+         on_premises_start, online_only_start, other_start, unknown_start, everything())
+
+#write_csv(slope_df_plotter, 'C:/Users/Owner/CMU/Spring/PHIGHT_COVID/rt_plotting_df.csv')
+```
+
+To estimate how R_t changes over the start of the semester by county, for each county's estimated R_t we fit a linear regression indexed on time and extract the slope during both the first 3 weeks of the semester and the following 3 weeks of the semester. This would allow us to analyze how the effective reproductive rate has changed during this interval.
+
+After getting the slopes for these two time periods, we join this data with data about the counties. Specifically, we focus on the starting teaching posture variables and how the counties are classified in order to make comparisons across these groups. We also include demographics variables like population and mobility to further investigate how these variables influence our outcomes of interest.
+
+## beginning of graphics for presentation
+
+```{r}
+addmargins(table(slope_df_plotter$nchs_urban_rural_status, slope_df_plotter$major_teaching_start)) %>%
+  kbl(caption = "NCHS Status by Starting Teaching Posture across counties", label = '')  %>% 
+  kable_classic(latex_options = "HOLD_position")
+
+addmargins(table(slope_df_plotter$nchs_urban_rural_status, slope_df_plotter$major_teaching_end)) %>%
+  kbl(caption = "NCHS Status by Ending Teaching Posture across counties", label = '')  %>% 
+  kable_classic(latex_options = "HOLD_position")
+```
+
+Due to lack of observations, it doesn't make much sense to compare micropolitan counties across the different majority teaching postures. Specifically, at the start of the semester these is only one micropolitan county with a majority teaching posture of online only.
+
+# Presentation plots
+
+These plots were generated as part of the presentation deliverable. 
+
+## potential presentation plots
+
+```{r}
+# used to change the headers in facet_wrap or facet_grid
+slopes_titles <- c('deaths_slope_week_1_3' = 'Period 1','deaths_slope_week_4_6' = 'Period 2')
+posture_titles_full <- c('hybrid_start' = 'Hybrid', 'on_premises_start' = 'On Premises', 'online_only_start' = 'Online Only')
+posture_titles_partial <- c('on_premises_start' = 'On Premises', 'online_only_start' = ' Online Only')
+
+slope_df_plotter %>%
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6, names_to = 'slope_type', values_to = 'slope') %>%
+  ggplot(aes(x = log(population_density), y = slope, color = major_teaching_start)) +
+  geom_point() +
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_wrap(~slope_type, labeller = as_labeller(slopes_titles)) +
+  theme_bw() +
+  labs(
+    #title = TeX(r'(Change in $R_t$ for deaths by county against population density starting 9/15)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = 'Log of population density') +
+  guides(color = guide_legend("Majority starting teaching posture")) +
+  ylim(c(-2,2))
+
+slope_df_plotter %>%
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6, names_to = 'slope_type', values_to = 'slope') %>%
+  ggplot(aes(x = mean_mobility, y = slope, color = major_teaching_start)) +
+  geom_point(aes(size = log(population_density), alpha = log(population_density))) +
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_wrap(~slope_type, labeller = as_labeller(slopes_titles)) +
+  labs(
+    #title = TeX(r'(Change in $R_t$ for deaths by county against population density starting 9/15)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = 'Average % 6 hr+ Away from Home in Fall Semester') +
+  guides(color = guide_legend("Majority starting teaching posture"),
+         alpha = guide_legend('Log of population density'),
+         size = guide_legend('Log of population density')) +
+  theme_bw() +
+  ylim(c(-2,2))
+
+slope_df_plotter %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = hybrid_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free', labeller = labeller(posture = posture_titles_full, slope_type = slopes_titles)) +
+  theme_bw() +
+  labs(
+    #title = TeX(r'(Change in $R_t$ for deaths by county against % of teaching posture starting 9/15)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Log of Population Density"), alpha = guide_legend("Log of Population Density"))
+
+slope_df_plotter %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = hybrid_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point(aes(size = log(population_density), alpha = log(population_density))) + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free', labeller = labeller(posture = posture_titles_full, slope_type = slopes_titles)) +
+  theme_bw() +
+  labs(
+    #title = TeX(r'(Change in $R_t$ for deaths by county against % of teaching posture starting 9/15)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Log of Population Density"), alpha = guide_legend("Log of Population Density"))
+
+slope_df_plotter %>% 
+  filter(nchs_urban_rural_status == 'Micropolitan') %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = hybrid_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free', labeller = labeller(posture = posture_titles_full, slope_type = slopes_titles)) +
+  labs(
+    #title = TeX(r'(Change in $R_t$ for Micropolitan counties against % of teaching posture starting 9/15)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Log of Population Density"), alpha = guide_legend("Log of Population Density")) +
+  theme_bw()
+
+slope_df_plotter %>% 
+  filter(nchs_urban_rural_status == 'Micropolitan') %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = hybrid_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point(aes(size = log(population_density), alpha = log(population_density))) + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free', labeller = labeller(posture = posture_titles_full, slope_type = slopes_titles)) +
+  labs(
+    #title = TeX(r'(Change in $R_t$ for Micropolitan counties against % of teaching posture starting 9/15)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Log of Population Density"), alpha = guide_legend("Log of Population Density")) +
+  theme_bw()
+
+slope_df_plotter %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = on_premises_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free', labeller = labeller(posture = posture_titles_partial, slope_type = slopes_titles)) +
+  labs(
+    #title = TeX(r'(Change in $R_t$ for deaths by county against % of teaching posture starting 9/15)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Log of Population Density"), alpha = guide_legend("Log of Population Density")) +
+  theme_bw()
+
+slope_df_plotter %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = on_premises_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point(aes(size = log(population_density), alpha = log(population_density))) + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free', labeller = labeller(posture = posture_titles_partial, slope_type = slopes_titles)) +
+  labs(
+    #title = TeX(r'(Change in $R_t$ for deaths by county against % of teaching posture starting 9/15)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Log of Population Density"), alpha = guide_legend("Log of Population Density")) +
+  theme_bw()
+
+slope_df_plotter %>% 
+  filter(nchs_urban_rural_status == 'Micropolitan') %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = on_premises_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free', labeller = labeller(posture = posture_titles_partial, slope_type = slopes_titles)) +
+  labs(
+    #title = TeX(r'(Change in $R_t$ for Micropolitan counties against % of teaching posture starting 9/15)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Log of Population Density"), alpha = guide_legend("Log of Population Density")) +
+  theme_bw()
+
+slope_df_plotter %>% 
+  filter(nchs_urban_rural_status == 'Micropolitan') %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = on_premises_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point(aes(size = log(population_density), alpha = log(population_density))) + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free', labeller = labeller(posture = posture_titles_partial, slope_type = slopes_titles)) +
+  labs(
+    #title = TeX(r'(Change in $R_t$ for Micropolitan counties against % of teaching posture starting 9/15)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Log of Population Density"), alpha = guide_legend("Log of Population Density")) +
+  theme_bw()
+
+slope_df_plotter %>%
+    pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6, names_to = 'slope_type', values_to = 'slope') %>%
+    ggplot(aes(y = slope)) +
+    geom_boxplot(aes(color = major_teaching_start)) + 
+    facet_wrap(~slope_type, labeller = as_labeller(slopes_titles)) +
+    theme_bw() +
+    labs(y = TeX(r'(Change in $R_t$)')) +
+    theme(axis.text.x = element_blank()) +
+    guides(color = guide_legend("Majority starting teaching posture"))
+```
+
+
+# other plots considered for presentation
+
+```{r}
+slope_df_plotter %>%
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6, names_to = 'slope_type', values_to = 'slope') %>%
+  ggplot(aes(x = log(population_density), y = slope, color = major_teaching_start)) +
+  geom_point() +
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_wrap(~slope_type, labeller = as_labeller(slopes_titles)) +
+  theme_bw() +
+  labs(
+    title = TeX(r'(Change in $R_t$ for deaths by county starting 9/15 against population density)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = 'Log of population density') +
+  guides(color = guide_legend("Majority starting teaching posture")) +
+  ylim(c(-2,2))
+
+slope_df_plotter %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = hybrid_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free', labeller = labeller(posture = posture_titles_full, slope_type = slopes_titles)) +
+  theme_bw() +
+  labs(
+    title = TeX(r'(Change in $R_t$ for deaths by county starting 9/15 against % of teaching posture)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Log of Population Density"), alpha = guide_legend("Log of Population Density"))
+```
+
+## scatterplot comparing change in slopes across the two weeks
+
+```{r}
+slope_df_plotter %>% 
+  ggplot(aes(x = deaths_slope_week_1_3, y = deaths_slope_week_4_6)) +
+  geom_point(aes(alpha = 0.5, size = hybrid_start, color = hybrid_start)) +
+  theme_bw() +
+  ylim(c(-2,2)) +
+  geom_vline(xintercept = 0) + 
+  geom_hline(yintercept = 0) +
+  geom_abline(intercept = 0, slope = 1)
+```
+
+## scatterplots comparing first 3 weeks against next 3 weeks
+
+```{r}
+slope_df_plotter %>% 
+  ggplot(aes(x = deaths_slope_week_1_3, y = deaths_slope_week_4_6)) +
+  geom_point(aes(color = major_teaching_start, shape = major_teaching_start)) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0) +
+  geom_abline(slope = 1, intercept = 0) + 
+  theme_bw()
+
+slope_df_plotter %>% 
+  ggplot(aes(x = deaths_slope_week_1_3, y = deaths_slope_week_4_6)) +
+  geom_point(aes(color = major_teaching_start, shape = major_teaching_start, alpha = log(population_density))) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0) +
+  geom_abline(slope = 1, intercept = 0) + 
+  theme_bw()
+
+slope_df_plotter %>% 
+  ggplot(aes(x = deaths_slope_week_1_3, y = deaths_slope_week_4_6)) +
+  geom_point(aes(size = on_premises_start, alpha = 0.5)) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0) +
+  geom_abline(slope = 1, intercept = 0) + 
+  theme_bw() +
+  xlim(c(-2,2)) +
+  ylim(c(-2,2))
+
+slope_df_plotter %>% 
+  ggplot(aes(x = deaths_slope_week_1_3, y = deaths_slope_week_4_6)) +
+  geom_point(aes(size = hybrid_start)) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0) +
+  geom_abline(slope = 1, intercept = 0) + 
+  theme_bw()
+
+slope_df_plotter %>% 
+  ggplot(aes(x = deaths_slope_week_1_3, y = deaths_slope_week_4_6)) +
+  geom_point(aes(size = online_only_start)) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0) +
+  geom_abline(slope = 1, intercept = 0) + 
+  theme_bw()
+```
+
+## scatterplots by majority teaching posture
+
+```{r}
+slope_df_plotter %>%
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6, names_to = 'slope_type', values_to = 'slope') %>%
+  ggplot(aes(x = log(population_density), y = slope, color = major_teaching_start)) +
+  geom_point() +
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_wrap(~slope_type) +
+  theme_bw() +
+  labs(
+    title = TeX(r'(Change in $R_t$ for deaths by county starting 9/15 against population density)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = 'Log of population density') +
+  guides(color = guide_legend("Majority starting teaching posture"))
+
+# TeX(r'(Slope of R_t for deaths by county starting 9/15 against population density)')
+# TeX(r'(Slope of R_t for deaths)')
+
+# by mobility
+slope_df_plotter %>%
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6, names_to = 'slope_type', values_to = 'slope') %>%
+  ggplot(aes(x = mean_mobility, y = slope, color = major_teaching_start)) +
+  geom_point() +
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_wrap(~slope_type)+
+  theme_bw() +
+  labs(
+    title = 'Slope of Rt by county deaths starting 9/15 against mobility',
+    y = 'Slope of Rt for deaths',
+    x = 'Average % 6 hr+ Away from Home in Fall Semester') +
+  guides(color = guide_legend("Majority starting teaching posture"))
+
+# by population density accounting for mobility
+slope_df_plotter %>%
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6, names_to = 'slope_type', values_to = 'slope') %>%
+  ggplot(aes(x = log(population_density), y = slope, color = major_teaching_start)) +
+  geom_point(aes(size = mean_mobility, alpha = mean_mobility)) +
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_wrap(~slope_type)+
+  theme_bw() +
+  labs(
+    title = TeX(r'(Change in $R_t$ for deaths by county starting 9/15 against population density)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = 'Log of population density') +
+  guides(color = guide_legend("Majority starting teaching posture"))
+
+# by mobililty accounting for population density
+slope_df_plotter %>%
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6, names_to = 'slope_type', values_to = 'slope') %>%
+  ggplot(aes(x = mean_mobility, y = slope, color = major_teaching_start)) +
+  geom_point(aes(size = log(population_density), alpha = log(population_density))) +
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_wrap(~slope_type) +
+  labs(
+    title = TeX(r'(Change in $R_t$ for deaths by county starting 9/15 against population density)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = 'Average % 6 hr+ Away from Home in Fall Semester') +
+  guides(color = guide_legend("Majority starting teaching posture"),
+         alpha = guide_legend('Log of population density'),
+         size = guide_legend('Log of population density')) +
+  theme_bw()
+```
+
+## scatterplot of death rates by percentage of teaching 
+
+```{r}
+slope_df_plotter %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = hybrid_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point(aes(size = log(population_density), alpha = log(population_density))) + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free') +
+  theme_bw() +
+  labs(
+    title = TeX(r'(Change in $R_t$ for deaths by county starting 9/15 against % of teaching posture)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Log of Population Density"), alpha = guide_legend("Log of Population Density"))
+
+
+slope_df_plotter %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = hybrid_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free') +
+  labs(
+    title = 'Slope of Rt for deaths by county starting 9/15 against % of teaching posture',
+    y = 'Slope of Rt for deaths',
+    x = '% of teaching posture')
+
+slope_df_plotter %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = hybrid_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point(aes(size = mean_mobility, alpha = mean_mobility)) + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free') +
+  labs(
+    title = 'Slope of Rt for deaths by county starting 9/15 against % of teaching posture',
+    y = 'Slope of Rt for deaths',
+    x = '% of teaching posture')
+```
+
+## scatterplot of death rates by percentage of teaching for micropolitan only
+
+```{r}
+slope_df_plotter %>% 
+  filter(nchs_urban_rural_status == 'Micropolitan') %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = hybrid_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point(aes(size = log(population_density), alpha = log(population_density))) + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free') +
+  labs(
+    title = TeX(r'(Change in $R_t$ for Micropolitan counties starting 9/15 against % of teaching posture)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Log of Population Density"), alpha = guide_legend("Log of Population Density")) +
+  theme_bw()
+
+slope_df_plotter %>% 
+  filter(nchs_urban_rural_status == 'Micropolitan') %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = hybrid_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free') +
+  labs(
+    title = 'Slope of Rt for deaths for Micropolitan counties starting 9/15 against % of teaching posture',
+    y = 'Slope of Rt for deaths',
+    x = '% of teaching posture')
+
+slope_df_plotter %>% 
+  filter(nchs_urban_rural_status == 'Micropolitan') %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = hybrid_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point(aes(size = mean_mobility, alpha = mean_mobility)) + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free') +
+  labs(
+    title = 'Slope of Rt for deaths for Micropolitan counties starting 9/15 against % of teaching posture',
+    y = 'Slope of Rt for deaths',
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Average Mobility"), alpha = guide_legend("Average Mobility"))
+```
+
+## filtering out hybrid percentage
+
+```{r}
+slope_df_plotter %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = on_premises_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free')
+
+slope_df_plotter %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = on_premises_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point(aes(size = log(population_density), alpha = log(population_density))) + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free') +
+  labs(
+    title = TeX(r'(Change in $R_t$ for deaths by county starting 9/15 against % of teaching posture)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Log of Population Density"), alpha = guide_legend("Log of Population Density")) +
+  theme_bw()
+
+slope_df_plotter %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = on_premises_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point(aes(size = mean_mobility, alpha = mean_mobility)) + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free')
+```
+
+## scatterplot of death rates by percentage of teaching for micropolitan only
+
+```{r}
+slope_df_plotter %>% 
+  filter(nchs_urban_rural_status == 'Micropolitan') %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = on_premises_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free')
+
+slope_df_plotter %>% 
+  filter(nchs_urban_rural_status == 'Micropolitan') %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = on_premises_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point(aes(size = log(population_density), alpha = log(population_density))) + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free') +
+  labs(
+    title = TeX(r'(Change in $R_t$ for Micropolitan counties starting 9/15 against % of teaching posture)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = '% of teaching posture') +
+  guides(size = guide_legend("Log of Population Density"), alpha = guide_legend("Log of Population Density")) +
+  theme_bw()
+
+slope_df_plotter %>% 
+  filter(nchs_urban_rural_status == 'Micropolitan') %>% 
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6,
+               names_to = 'slope_type', values_to = 'slope') %>% 
+  pivot_longer(cols = on_premises_start:online_only_start, names_to = 'posture', values_to = 'pct_posture') %>% 
+  ggplot(aes(x = pct_posture, y = slope)) + 
+  geom_point(aes(size = mean_mobility, alpha = mean_mobility)) + 
+  geom_smooth(method = 'lm', formula = y ~ x, se = F) +
+  facet_grid(posture ~ slope_type, scales = 'free')
+```
+
+### boxplots
+
+```{r}
+slope_df_plotter %>%
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6, names_to = 'slope_type', values_to = 'slope') %>%
+  ggplot(aes(x = slope, color = major_teaching_start)) +
+  geom_boxplot() +
+  facet_wrap(~slope_type, labeller = as_labeller(slopes_titles)) +
+  theme_bw() +
+  labs(
+    #title = TeX(r'(Change in $R_t$ for deaths by county against population density starting 9/15)'),
+    y = TeX(r'(Change in $R_t$)'),
+    x = 'Log of population density') +
+  guides(color = guide_legend("Majority starting teaching posture")) +
+  ylim(c(-2,2))
+
+slope_df_plotter %>%
+  pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6, names_to = 'slope_type', values_to = 'slope') %>%
+  ggplot(aes(y = slope)) +
+  geom_boxplot(aes(color = major_teaching_start)) +
+  theme_bw() +
+  labs(y = TeX(r'(Change in $R_t$)')) +
+  theme(axis.text.x = element_blank()) +
+  guides(color = guide_legend("Majority starting teaching posture"))
+
+slope_df_plotter %>%
+    pivot_longer(cols = deaths_slope_week_1_3:deaths_slope_week_4_6, names_to = 'slope_type', values_to = 'slope') %>%
+    ggplot(aes(y = slope)) +
+    geom_boxplot(aes(color = major_teaching_start)) + 
+    facet_wrap(~slope_type, labeller = as_labeller(slopes_titles)) +
+    theme_bw() +
+    labs(y = TeX(r'(Change in $R_t$)')) +
+    theme(axis.text.x = element_blank()) +
+    guides(color = guide_legend("Majority starting teaching posture"))
+    
+    
+
+
+slope_df_plotter %>%
+  pivot_longer(
+    cols = Rt_cases_slope_first_3_weeks:Rt_cases_slope_next_3_weeks,
+    names_to = 'slope_type',
+    values_to = 'slope') %>%
+  ggplot(aes(x = major_teaching_start, y = slope, color = slope_type)) +
+  geom_boxplot() 
+
+slope_df_plotter %>%
+  pivot_longer(
+    cols = Rt_deaths_slope_first_3_weeks:Rt_deaths_slope_next_3_weeks,
+    names_to = 'slope_type',
+    values_to = 'slope') %>%
+  ggplot(aes(x = major_teaching_start, y = slope, color = slope_type)) +
+  geom_boxplot()
+
+# facets
+# sub facets
+slope_df_plotter %>%
+  pivot_longer(
+    cols = Rt_cases_slope_first_3_weeks:Rt_cases_slope_next_3_weeks,
+    names_to = 'slope_type',
+    values_to = 'slope') %>%
+  ggplot(aes(x = major_teaching_start, y = slope, color = major_teaching_start)) +
+  geom_boxplot() +
+  facet_wrap(~slope_type)
+
+slope_df_plotter %>%
+  pivot_longer(
+    cols = Rt_deaths_slope_first_3_weeks:Rt_deaths_slope_next_3_weeks,
+    names_to = 'slope_type',
+    values_to = 'slope') %>%
+  ggplot(aes(x = major_teaching_start, y = slope, color = major_teaching_start)) +
+  geom_boxplot() +
+  facet_wrap(~slope_type)
+
+## total facet
+slope_df_plotter %>%
+  pivot_longer(
+    cols = Rt_cases_slope_first_3_weeks:Rt_deaths_slope_next_3_weeks,
+    names_to = 'slope_type',
+    values_to = 'slope') %>%
+  ggplot(aes(x = major_teaching_start, y = slope, color = major_teaching_start)) +
+  geom_boxplot() +
+  facet_wrap(~slope_type)
+```

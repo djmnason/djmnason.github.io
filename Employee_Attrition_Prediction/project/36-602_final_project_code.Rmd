@@ -1,0 +1,309 @@
+---
+title: "Final Project"
+author: "Caleb Pena"
+date: "4/19/2022"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+library(caret)
+library(pROC)
+setwd("~/Desktop/School/2022 - Spring/Perspectives II/Final Project")
+attrition <- read_csv("employee_attrition.csv") %>% 
+  select(-c(EmployeeCount, Over18, StandardHours)) %>% 
+  mutate(JobRole = factor(JobRole),
+         Attrition = factor(attrition$Attrition, levels = c("Yes", "No")))
+```
+
+
+
+### Exploratory Data Analysis
+
+
+
+```{r}
+attrition %>% 
+  group_by(Department) %>% 
+  summarise(
+    Count = n(),
+    Attrition = sum(Attrition == "Yes")/n()) %>% 
+  ggplot() +
+  geom_bar(aes(x = Attrition, y = reorder(Department, Attrition)),
+           stat = "identity") +
+  theme_bw()
+  
+  
+attrition %>% 
+  group_by(OverTime) %>% 
+  summarise(
+    Count = n(),
+    Attrition = sum(Attrition == "Yes")/n()) %>% 
+  ggplot() +
+  geom_bar(aes(x = OverTime, y = Attrition), fill = "steelblue", color = "black",
+           stat = "identity", show.legend = F) +
+  labs(
+       y = "Attrition %", x = "Worked Overtime") +
+  theme_bw()
+  
+  
+attrition %>% 
+  group_by(EducationField) %>% 
+  summarise(
+    Count = n(),
+    Attrition = sum(Attrition == "Yes")/n()) %>% 
+  ggplot() +
+  geom_bar(aes(x = Attrition, y = reorder(EducationField, Attrition)),
+           stat = "identity") +
+  theme_bw()
+  
+attrition %>% 
+  group_by(Gender) %>% 
+  summarise(
+    Count = n(),
+    Attrition = sum(Attrition == "Yes")/n()) %>% 
+  ggplot() +
+  geom_bar(aes(y = Gender, x = Attrition), stat = "identity") +
+  theme_bw()
+  
+attrition %>% 
+  group_by(JobRole) %>% 
+  summarise(
+    Count = n(),
+    Attrition = sum(Attrition == "Yes")/n()) %>% 
+  ggplot() +
+  geom_bar(aes(x = Attrition, y = reorder(JobRole, Attrition)),
+           stat = "identity") +
+  theme_bw()  
+
+
+attrition %>% 
+  group_by(Attrition) %>% 
+  summarise(
+    Count = n(),
+    Salary = mean(DailyRate))
+
+attrition %>% 
+  ggplot(aes(x = DailyRate, y = Attrition, fill = Attrition)) +
+  geom_violin() +
+  geom_boxplot(fill = "white", width = 0.5) +
+  labs(x = "Daily Rate") +
+  theme_bw()
+
+
+attrition %>% 
+  ggplot(aes(x = DistanceFromHome, y = Attrition, fill = Attrition)) +
+  geom_violin() +
+  geom_boxplot(fill = "white", width = 0.15) +
+  labs(x = "Distance from Home") +
+  theme_bw()
+
+attrition %>% 
+  ggplot(aes(x = HourlyRate, y = Attrition, fill = Attrition)) +
+  geom_violin() +
+  geom_boxplot(fill = "white", width = 0.5) +
+  labs(x = "Hourly Rate") +
+  theme_bw()
+
+attrition %>% 
+  ggplot(aes(x = Age, y = Attrition, fill = Attrition)) +
+  geom_violin() +
+  geom_boxplot(fill = "white", width = 0.3) +
+  labs(x = "Age") +
+  theme_bw()
+
+attrition %>% 
+  ggplot(aes(x = PercentSalaryHike, y = Attrition, fill = Attrition)) +
+  geom_violin() +
+  geom_boxplot(fill = "white", width = 0.3) +
+  labs(x = "% Salary Hike") +
+  theme_bw()
+
+attrition %>% 
+  ggplot(aes(x = YearsSinceLastPromotion, y = Attrition, fill = Attrition)) +
+  geom_violin() +
+  geom_boxplot(fill = "white", width = 0.2) +
+  labs(x = "Years Since Last Promotion") +
+  theme_bw()
+
+
+select(attrition, HourlyRate, DailyRate, MonthlyRate, MonthlyIncome) %>% 
+  cor()
+cor.test(attrition$HourlyRate, attrition$DailyRate, method = "pearson")$p.value
+cor.test(attrition$HourlyRate, attrition$MonthlyRate, method = "pearson")$p.value
+cor.test(attrition$HourlyRate, attrition$MonthlyIncome, method = "pearson")$p.value
+cor.test(attrition$DailyRate, attrition$MonthlyRate, method = "pearson")$p.value
+cor.test(attrition$HourlyRate, attrition$MonthlyIncome, method = "pearson")$p.value
+cor.test(attrition$MonthlyRate, attrition$MonthlyIncome, method = "pearson")$p.value
+
+select(attrition, Age, NumCompaniesWorked, TotalWorkingYears, YearsAtCompany) %>% 
+  cor()
+
+```
+
+
+```{r}
+attrition_fct <- attrition %>% 
+  select(-where(is.numeric))
+
+attrition_num <- attrition %>% 
+  select(where(is.numeric))
+
+process <- preProcess(attrition_num, method=c("range"))
+ 
+attrition_num_scaled <- predict(process, attrition_num)
+
+attrition_scaled <- attrition_fct %>% bind_cols(attrition_num_scaled)
+
+
+
+glm(Attrition ~ . - DailyRate - HourlyRate - MonthlyIncome - MonthlyRate - EmployeeNumber,
+                  data = attrition_scaled, family = binomial) %>%
+  broom::tidy() %>%
+  mutate(estimate = abs(estimate)) %>% 
+  arrange(-estimate) %>% 
+  filter(term != "(Intercept)",
+         p.value < 0.05) %>% 
+  head(10) %>% 
+  ggplot(aes(x = estimate, y = reorder(term, estimate))) +
+  geom_bar(stat = "identity") +
+  theme_bw() +
+  labs(x = "Feature Importance", y = "") +
+  scale_y_discrete(labels = rev(c("Years at Company", "Years in Current Role",
+                              "Years Since Last Promotion", "Total Working Years",
+                              "Years with Current Manager", "I(Overtime)",
+                              "I(Traveled Frequently)", "Number of Companies Worked",
+                              "Job Involvement", "I(Laboratory Technician)")))
+
+```
+
+```{r}
+attrition %>% 
+  ggplot(aes(x = YearsAtCompany, y = Attrition)) +
+  geom_violin(fill = "steelblue") +
+  geom_boxplot(width = 0.25) +
+  labs(x = "Years at Company") +
+  theme_bw()
+```
+
+
+
+```{r}
+# JobRole + BusinessTravel + EducationField+ Age + DistanceFromHome + MonthlyIncome  + PercentSalaryHike
+train_df <- sample_frac(attrition, 0.7)
+test_df <- anti_join(attrition, train_df)
+Sensitivity.fc <- function (data, lev = levels(data$obs), model = NULL) {
+    out <- c(twoClassSummary(data, lev = levels(data$obs), model = NULL))
+    c(out, Sensitivity = out["Sens"])
+}
+init_glm <- glm(Attrition ~ . - DailyRate - HourlyRate - MonthlyIncome - MonthlyRate - EmployeeNumber,
+                  data = train_df, family = binomial)
+
+init_glm <- train(Attrition ~ . - DailyRate - HourlyRate - MonthlyIncome - MonthlyRate - EmployeeNumber,
+                  data = train_df, method = "glm", family = binomial,
+                  trControl = trainControl(method = "repeatedcv", number = 5, repeats = 5,
+                                           summaryFunction = twoClassSummary, classProbs = T))
+summary(init_glm)
+roc_info <- roc(attrition$Attrition, predict(init_glm, type = "prob")$Yes, plot= T)
+
+roc_info$accuracies <- (table(attrition$Attrition)[1]*roc_info$specificities +
+                          table(attrition$Attrition)[2]*roc_info$sensitivities)/nrow(attrition)
+
+plot(roc_info$sensitivities, roc_info$accuracies, type = "l")
+confusionMatrix(predict(init_glm, newdata = test_df), factor(test_df$Attrition))
+
+confusionMatrix(factor(ifelse(predict(init_glm, newdata = test_df, type = "response") > 0.5, "No", "Yes")),
+                factor(test_df$Attrition))
+```
+
+
+```{r}
+init_rf_acc <- train(Attrition ~ . - DailyRate - HourlyRate - MonthlyIncome - MonthlyRate - EmployeeNumber,
+                 data = train_df, method = "ranger",
+                 trControl = trainControl(method = "repeatedcv", number = 5, repeats = 5,
+                                           summaryFunction = defaultSummary))
+init_rf_acc
+
+init_rf_sens <- train(Attrition ~ . - DailyRate - HourlyRate - MonthlyIncome - MonthlyRate - EmployeeNumber,
+                 data = train_df, method = "ranger",
+                 trControl = trainControl(method = "repeatedcv", number = 5, repeats = 5,
+                                           summaryFunction = twoClassSummary, classProbs = T))
+init_rf_sens
+summary(init_rf)
+# roc_info <- roc(attrition$Attrition, predict(init_glm, type = "prob")$Yes, plot= T)
+# 
+# roc_info$accuracies <- (table(attrition$Attrition)[1]*roc_info$specificities +
+#                           table(attrition$Attrition)[2]*roc_info$sensitivities)/nrow(attrition)
+# 
+# plot(roc_info$sensitivities, roc_info$accuracies, type = "l")
+confusionMatrix(predict(init_rf, newdata = test_df), factor(test_df$Attrition))
+
+```
+
+```{r}
+init_xgb_acc <- train(Attrition ~ . - DailyRate - HourlyRate - MonthlyIncome - MonthlyRate - EmployeeNumber,
+                  data = train_df, method = "xgbLinear",
+                  trControl = trainControl(method = "repeatedcv", number = 5, repeats = 5,
+                                           summaryFunction = defaultSummary))
+
+init_xgb_sens <- train(Attrition ~ . - DailyRate - HourlyRate - MonthlyIncome - MonthlyRate - EmployeeNumber,
+                  data = train_df, method = "xgbLinear",
+                  trControl = trainControl(method = "repeatedcv", number = 5, repeats = 5,
+                                           summaryFunction = twoClassSummary, classProbs = T))
+
+
+summary(init_xgb)
+roc_info <- roc(attrition$Attrition, predict(init_glm, type = "prob")$Yes, plot= T)
+
+roc_info$accuracies <- (table(attrition$Attrition)[1]*roc_info$specificities +
+                          table(attrition$Attrition)[2]*roc_info$sensitivities)/nrow(attrition)
+
+plot(roc_info$sensitivities, roc_info$accuracies, type = "l")
+confusionMatrix(predict(init_xgb, newdata = test_df), factor(test_df$Attrition))
+```
+
+
+```{r}
+test_df %>% 
+  mutate(predictions = predict(init_glm, newdata = test_df)) %>% 
+  group_by(Department) %>% 
+  summarise(count = n(),
+            accuracy = sum(predictions == Attrition)/n())
+
+test_df %>% 
+  mutate(predictions = predict(init_glm, newdata = test_df)) %>% 
+  group_by(BusinessTravel) %>% 
+  summarise(count = n(),
+            accuracy = sum(predictions == Attrition)/n())
+
+test_df %>% 
+  mutate(predictions = predict(init_glm, newdata = test_df)) %>% 
+  group_by(EducationField) %>% 
+  summarise(count = n(),
+            accuracy = sum(predictions == Attrition)/n())
+
+test_df %>% 
+  mutate(predictions = predict(init_glm, newdata = test_df)) %>% 
+  group_by(Gender) %>% 
+  summarise(count = n(),
+            accuracy = sum(predictions == Attrition)/n())
+
+test_df %>% 
+  mutate(predictions = predict(init_glm, newdata = test_df)) %>% 
+  group_by(JobRole) %>% 
+  summarise(count = n(),
+            accuracy = sum(predictions == Attrition)/n())
+
+test_df %>% 
+  mutate(predictions = predict(init_glm, newdata = test_df)) %>% 
+  group_by(MaritalStatus) %>% 
+  summarise(count = n(),
+            accuracy = sum(predictions == Attrition)/n())
+
+test_df %>% 
+  mutate(predictions = predict(init_glm, newdata = test_df)) %>% 
+  group_by(OverTime) %>% 
+  summarise(count = n(),
+            accuracy = sum(predictions == Attrition)/n())
+```
+

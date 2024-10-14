@@ -1,0 +1,177 @@
+---
+title: "r_t with case and death time series"
+author: "ZIYAN (OLIVIA) WANG"
+date: "4/14/2022"
+output: pdf_document
+---
+
+## This document is used to calculate R_t for different teaching postures by using case and death time series
+## Author: Olivia Wang, 04/14/2022 ## Updated on 05/01/2022
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(hrbrthemes)
+library(EpiNow2)
+library(tidyverse)
+library(EpiEstim)
+library(dplyr)
+library(sqldf)
+library(ggplot2)
+library(hrbrthemes)
+library(viridis)
+```
+
+```{r}
+total <- read.csv('Rt_total.csv')[-c(1:117),]
+total$date <- as.Date(total$date)
+
+start_pos <- read.csv('Rt_by_starting_posture.csv')
+start_pos$date <- as.Date(start_pos$date)
+start_pos_new <- sqldf('select *
+                  from start_pos
+                  order by date')
+start_pos_use = start_pos_new[-c(1:351),]
+
+metro <- read.csv('Rt_by_metropolitan.csv')
+metro$date <- as.Date(metro$date)
+metro_new <- sqldf('select *
+                  from metro
+                  order by date')
+metro_use <- metro_new[-c(1:234),]
+
+urban_rural <- read.csv('Rt_by_nchs_urban_rural.csv')
+urban_rural$date <- as.Date(urban_rural$date)
+urban_rural_new <- sqldf('select *
+                  from urban_rural
+                  order by date')
+urban_rural_use <- urban_rural_new[-c(1:702),]
+```
+
+# R_t death & case
+```{r}
+ggplot(data=total, aes(x=date)) +
+  geom_rect(aes(xmin = as.Date("2020-08-15"), xmax = as.Date("2020-12-15"), 
+                ymin = -Inf, ymax = Inf), alpha = 0.1, colour = "grey95", fill="grey95") + 
+  geom_ribbon(aes(ymin=total$R.cases.q2.5, ymax=total$R.cases.q97.5), linetype=2, alpha=0.1) +
+  geom_line(aes(y=R.cases, color = 'Case')) +
+  geom_ribbon(aes(ymin=total$R.deaths.q2.5, ymax=total$R.deaths.q97.5), linetype=2, alpha=0.1) +
+  geom_line(aes(y=R.deaths, color = 'Death')) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+  panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  ggtitle("Estimaed R_t for Case and Death") +
+  labs(
+      x="Date",
+      y="R_t") +
+  scale_color_manual(name='R_t',
+                     breaks=c('Case', 'Death'),
+                     values=c('Case'='black', 'Death'='red')) +
+  scale_x_date(date_labels = "%b\n%Y") 
+```
+# R_t for starting teaching posture
+```{r}
+g3 = ggplot(start_pos_use, aes(x=date, y=R.deaths, group=major_teaching_start, 
+                          color=major_teaching_start,
+                          ymin = start_pos_use$R.deaths.q2.5, 
+                          ymax = start_pos_use$R.deaths.q97.5)) +
+    geom_rect(aes(xmin = as.Date("2020-08-15"), xmax = as.Date("2020-12-15"), 
+                ymin = -Inf, ymax = Inf), alpha = 0.1, colour = "grey95", fill="grey95") + 
+    geom_ribbon(aes(ymin=start_pos_use$R.deaths.q2.5, 
+                   ymax=start_pos_use$R.deaths.q97.5), linetype=0, alpha=0.1) +
+    geom_line() +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+    panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+    scale_x_date(date_labels = "%b\n%Y") +
+    theme(legend.position = "bottom") + 
+    ylim(0, 3) 
+```
+
+```{r}
+g4 = ggplot(start_pos_use, aes(x=date, y=R.cases, group=major_teaching_start, 
+                          color=major_teaching_start,
+                          ymin = start_pos_use$R.cases.q2.5, 
+                          ymax = start_pos_use$R.cases.q97.5)) +
+   geom_rect(aes(xmin = as.Date("2020-08-15"), xmax = as.Date("2020-12-15"), 
+                ymin = -Inf, ymax = Inf), alpha = 0.1, colour = "grey95", fill="grey95") + 
+   geom_ribbon(aes(ymin=start_pos_use$R.cases.q2.5, 
+                   ymax=start_pos_use$R.cases.q97.5), linetype=0, alpha=0.1) +
+    geom_line() +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+    panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+    scale_x_date(date_labels = "%b\n%Y") +
+    theme(legend.position = "bottom") + 
+    ylim(0, 3)
+g3 + g4
+```
+
+
+# R_t for metropolitan_status
+```{r}
+g1 = ggplot(metro_use, aes(x=date, y=R.cases, group=metropolitan_status, 
+                          color=metropolitan_status,
+                          ymin = metro_use$R.cases.q2.5, 
+                          ymax = metro_use$R.cases.q97.5)) +
+   geom_rect(aes(xmin = as.Date("2020-08-15"), xmax = as.Date("2020-12-15"), 
+                ymin = -Inf, ymax = Inf), alpha = 0.1, colour = "grey95", fill="grey95") + 
+   geom_ribbon(aes(ymin=metro_use$R.cases.q2.5, 
+                   ymax=metro_use$R.cases.q97.5), linetype=0, alpha=0.1) +
+    geom_line() +
+    scale_x_date(date_labels = "%b\n%Y") + 
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+    panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+    theme(legend.position = "bottom") + 
+    ylim(0, 3) 
+
+g2 = ggplot(metro_use, aes(x=date, y=R.deaths, group=metropolitan_status, 
+                          color=metropolitan_status,
+                          ymin = metro_use$R.deaths.q2.5, 
+                          ymax = metro_use$R.deaths.q97.5)) +
+   geom_rect(aes(xmin = as.Date("2020-08-15"), xmax = as.Date("2020-12-15"), 
+                ymin = -Inf, ymax = Inf), alpha = 0.1, colour = "grey95", fill="grey95") + 
+   geom_ribbon(aes(ymin=metro_use$R.deaths.q2.5, 
+                   ymax=metro_use$R.deaths.q97.5), linetype=0, alpha=0.1) +
+    geom_line() +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+    panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+    scale_x_date(date_labels = "%b\n%Y") + 
+    theme(legend.position = "bottom")  +
+    ylim(0, 3) 
+g1 + g2
+```
+
+# R_t for urban_rural
+```{r}
+g5 = ggplot(urban_rural_use, aes(x=date, y=R.deaths, group=nchs_urban_rural_status, 
+                          color=nchs_urban_rural_status,
+                          ymin = urban_rural_use$R.deaths.q2.5, 
+                          ymax = urban_rural_use$R.deaths.q97.5)) +
+   geom_rect(aes(xmin = as.Date("2020-08-15"), xmax = as.Date("2020-12-15"), 
+                ymin = -Inf, ymax = Inf), alpha = 0.1, colour = "grey95", fill="grey95") + 
+   geom_ribbon(aes(ymin=urban_rural_use$R.deaths.q2.5, 
+                   ymax=urban_rural_use$R.deaths.q97.5), linetype=0, alpha=0.1) +
+    geom_line() +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+    panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+    scale_x_date(date_labels = "%b\n%Y") + 
+    theme(legend.position = "bottom")
+```
+
+```{r}
+g6 = ggplot(urban_rural_use, aes(x=date, y=R.cases, group=nchs_urban_rural_status, 
+                          color=nchs_urban_rural_status,
+                          ymin = urban_rural_use$R.cases.q2.5, 
+                          ymax = urban_rural_use$R.cases.q97.5)) +
+   geom_rect(aes(xmin = as.Date("2020-08-15"), xmax = as.Date("2020-12-15"), 
+                ymin = -Inf, ymax = Inf), alpha = 0.1, colour = "grey95", fill="grey95") + 
+   geom_ribbon(aes(ymin=urban_rural_use$R.cases.q2.5, 
+                   ymax=urban_rural_use$R.cases.q97.5), linetype=0, alpha=0.1) +
+    geom_line() +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+    panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+    scale_x_date(date_labels = "%b\n%Y") + 
+   theme(legend.position = "bottom")
+g5 + g6
+```
