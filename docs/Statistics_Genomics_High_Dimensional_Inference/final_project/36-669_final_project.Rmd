@@ -1,0 +1,601 @@
+---
+title: "36-669 Final Project"
+author: "Daniel Nason and Anirban Chowdhury"
+date: "12/10/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, warning=FALSE,message=FALSE}
+library(mclust)
+library(xgboost)
+library(caret)
+library(Rtsne)
+library(tidyverse)
+tmp <- read.csv("https://github.com/xuranw/469_public/blob/main/project/Zeisel.csv?raw=true", row.names = 1)
+source("https://raw.githubusercontent.com/xuranw/469_public/master/hw6/hw6_functions.R")
+cell_types <- as.factor(tmp[,1])
+expr_mat <- as.matrix(tmp[,-1])
+
+expr_mat <- 10**4*scale(t(expr_mat), center = FALSE, scale = rowSums(expr_mat))
+expr_mat <- log2((t(expr_mat) + 1))
+expr_mat <- scale(expr_mat)
+```
+
+# Setting up the Data
+
+## PCAs
+
+```{r}
+# pca
+pca_res <- stats::prcomp(expr_mat, center = T, scale. = T)
+expr_pca <- pca_res$x[,1:10]
+expr_pca <- scale(expr_pca)
+
+cell_type_names <- levels(cell_types)
+# using the top 10 based on the Scree plot
+pca_res_plot <- (pca_res$sdev)^2/sum(pca_res$sdev^2) # plotting standard deviations
+par(mfrow = c(1,2))
+plot(pca_res$sdev, pch = 16,
+     ylab = "Square root of eigenvalues",
+     xlab = "Index of principal component",
+     main = "Scree plot of full data")
+plot(x = expr_pca[,1],
+     y = expr_pca[,2],
+     type = "p",
+     pch = 16,
+     xlab = "First Principal Component",
+     ylab = "Second Principal Component",
+     main = "Visualizing data\n(True clusters, full data)",
+     col = c("black", "blue", "red", "yellow", "green", "orange", "cyan")[cell_types])
+legend("bottomleft", legend = cell_type_names,
+       fill = c("black", "blue", "red", "yellow", "green", "orange", "cyan"), bty = "n")
+par(mfrow = c(1,1))
+```
+
+Based on the Scree plot, the top 10 PCAs will be used in the analysis. These eigenvalues have the largest square roots and explain the most variability in the data.
+
+## Sparse PCAs
+
+```{r,cache=TRUE}
+# sparce PCA
+set.seed(36669)
+spca_cv_res <- PMA::SPC.cv(expr_mat,
+                           sumabsvs = seq(1.2, sqrt(ncol(expr_mat))/2, length.out = 10))
+spca_res <- PMA::SPC(expr_mat, sumabsv = spca_cv_res$bestsumabsv1se, K = 10)
+dim(spca_res$v)
+
+gene_idx <- unique(sort(unlist(lapply(1:ncol(spca_res$v), function(i){
+  which(spca_res$v[,i]!=0)
+}))))
+length(gene_idx)
+
+expr_mat_screened <- expr_mat[,gene_idx]
+dim(expr_mat_screened)
+expr_mat_screened <- scale(expr_mat_screened, center = T, scale = T)
+
+pca_res2 <- stats::prcomp(expr_mat_screened, center = T, scale. = T)
+expr_spca <- pca_res2$x[,1:10]
+expr_spca <- scale(expr_spca)
+dim(expr_spca)
+plot(pca_res2$sdev, pch = 16, ylab = "Square root of eigenvalues", xlab = "Index of principal component", main = "Scree plot of screened data")
+```
+
+The top 10 PCAs are also chosen using Sparce PCA for the analysis. 
+
+## tSNE
+
+```{r}
+tsne.out <- Rtsne::Rtsne(expr_mat, dims = 3, perplexity = 50, pca = TRUE, initial_dims = 50)
+plot(tsne.out$Y, xlab = "tSNE_1", ylab = "tSNE_2",
+     col = c("black", "blue", "red", "yellow", "green", "orange", "cyan")[cell_types])
+legend("bottomleft", legend = cell_type_names,
+       fill = c("black", "blue", "red", "yellow", "green", "orange", "cyan"), bty = "n")
+```
+
+3 dimensions are selected to use for clustering with tSNE.
+
+# Clustering
+
+## Kmeans method
+
+### PCAs
+
+```{r,cache=TRUE}
+pca_vec <- rep(NA, 100)
+for(i in 1:length(pca_vec)){
+  kmean_res <- stats::kmeans(expr_pca, centers = length(unique(cell_types)))
+  pca_vec[i] <- compute_misclustering_rate(kmean_res$cluster, cell_types)
+}
+mean(pca_vec)
+#0.2122463
+```
+
+
+### Sparse PCAs
+
+```{r,cache=TRUE}
+spca_vec <- rep(NA, 100)
+for(i in 1:length(spca_vec)){
+  kmean_res <- stats::kmeans(expr_spca, centers = length(unique(cell_types)))
+  spca_vec[i] <- compute_misclustering_rate(kmean_res$cluster, cell_types)
+}
+mean(spca_vec)
+#0.2293478
+```
+
+### tSNE
+
+```{r,cache=TRUE}
+tsne_vec <- rep(NA, 100)
+for(i in 1:length(tsne_vec)){
+  kmean_res <- stats::kmeans(tsne.out$Y, centers = length(unique(cell_types)))
+  tsne_vec[i] <- compute_misclustering_rate(kmean_res$cluster, cell_types)
+}
+mean(tsne_vec)
+#0.2656739
+```
+
+
+## EM algorithm
+
+### PCAs
+```{r, cache=TRUE}
+em_pca_vec <- rep(NA, 100)
+for(i in 1:length(em_pca_vec)){
+  em_res <- Mclust(expr_pca, G = length(unique(cell_types)))
+  em_pca_vec[i] <- compute_misclustering_rate(em_res$classification, cell_types)
+}
+mean(em_pca_vec)
+# [1] 0.3139634
+```
+
+### Sparse PCAs
+```{r, cache=TRUE}
+em_spca_vec <- rep(NA, 100)
+for(i in 1:length(em_spca_vec)){
+  em_res <- Mclust(expr_spca, G = length(unique(cell_types)))
+  em_spca_vec[i] <- compute_misclustering_rate(em_res$classification, cell_types)
+}
+mean(em_spca_vec)
+#0.305817
+```
+
+
+### tSNE
+```{r, cache=TRUE}
+em_tsne_vec <- rep(NA, 100)
+for(i in 1:length(em_tsne_vec)){
+  em_res <- Mclust(tsne.out$Y, G = length(unique(cell_types)))
+  em_tsne_vec[i] <- compute_misclustering_rate(em_res$classification, cell_types)
+  print(i)
+}
+mean(em_tsne_vec)
+#0.1724659
+```
+
+## Hierarchical Clustering
+
+```{r}
+# expr_pca_nonames  <-  expr_pca
+# rownames(expr_pca_nonames)  <-  1:3005
+# dist_mat  <-  (dist(expr_pca, method  <-  'manhattan'))
+
+#### extra- deciding what methods to use for hclust
+
+mats <- list(pca = expr_pca, spca = expr_spca, tsne = tsne.out$Y)
+
+dists <- c("euclidean", "maximum", "manhattan", "canberra", "binary" ,"minkowski")
+
+methods <- c( "ward.D", "ward.D2", "single", "complete", "average", "mcquitty", "median", "centroid")
+
+mat_vec <- c()
+dist_vec <- c()
+method_vec <- c()
+hier_clust_vec <- c()
+
+for (mat in 1:length(mats)){
+  for (dist in dists) {
+    for (method in methods){
+      dist_mat <- dist(mats[[mat]], method = dist)
+      hclust_avg <- hclust(dist_mat, method = method)
+      cut_avg <- cutree(hclust_avg, k = 7)
+      hier_clust_vec <- c(hier_clust_vec, compute_misclustering_rate(cut_avg, cell_types))
+      mat_vec <- c(mat_vec, names(mats)[mat])
+      dist_vec <- c(dist_vec, dist)
+      method_vec <- c(method_vec, method)
+    }
+  }
+}
+
+hier_clust_df <- data.frame(matrix = mat_vec, d_matrix = dist_vec, method = method_vec, miscluster_rate = hier_clust_vec) %>% 
+  pivot_wider(names_from = matrix, values_from = miscluster_rate)
+
+hier_clust_df %>% 
+  filter(d_matrix == "manhattan" & method == "ward.D2")
+```
+
+Based on the results, the preferred distance matrix is Manhattan and the performed clustering algorithm is ward.D2.
+
+### PCAs
+```{r}
+# dist_mat  <-  (dist(expr_pca, method  <-  'manhattan'))
+# hclust_avg <- hclust(dist_mat, method = 'ward.D2')
+# cut_avg <- cutree(hclust_avg, k = 7)
+# compute_misclustering_rate(cut_avg, cell_types)
+#0.1810316
+```
+
+
+### Sparse PCAs
+
+```{r}
+# dist_mat <- (dist(expr_spca, method = 'manhattan'))
+# #spca
+# hclust_avg <- hclust(dist_mat, method = 'ward.D2')
+# cut_avg <- cutree(hclust_avg, k = 7)
+# compute_misclustering_rate(cut_avg, cell_types)
+#0.1154742
+```
+
+
+### tSNE
+```{r}
+# dist_mat  <-  (dist(tsne.out$Y, method = 'manhattan'))
+# hclust_avg <- hclust(dist_mat, method = 'ward.D2')
+# cut_avg <- cutree(hclust_avg, k = 7)
+# compute_misclustering_rate(cut_avg, cell_types)
+# #0.1131448
+```
+
+## Seurat Analysis 
+
+```{r}
+library(Seurat)
+library(DESeq2)
+library(hexbin)
+library(vsn)
+library(pheatmap)
+library(SummarizedExperiment)
+library(genefilter)
+obj <- CreateSeuratObject(counts = t(as.matrix(tmp[,-1])), project = "ziesel")
+obj
+
+
+head(obj@meta.data, 5)
+VlnPlot(obj, features = c("nFeature_RNA", "nCount_RNA"), ncol = 3)
+
+obj <- NormalizeData(obj, normalization.method = "LogNormalize", scale.factor = 10000)
+
+
+obj <- FindVariableFeatures(obj, selection.method = "vst", nfeatures = 2000)
+
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(obj), 10)
+
+# plot variable features with and without labels
+plot1 <- VariableFeaturePlot(obj)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+plot1 + plot2
+
+
+
+
+all.genes <- rownames(obj)
+
+
+obj <- ScaleData(obj, features = all.genes)
+obj <- RunPCA(obj, features = VariableFeatures(object = obj))
+
+
+VizDimLoadings(obj, dims = 1:2, reduction = "pca")
+
+DimPlot(obj, reduction = "pca")
+
+DimHeatmap(obj, dims = 1:15, cells = 500, balanced = TRUE)
+
+obj <- FindNeighbors(obj, dims = 1:10)
+obj <- FindClusters(obj, resolution = 0.12)
+head(Idents(obj), 5)
+compute_misclustering_rate(Idents(obj), cell_types)
+
+```
+
+
+
+# Classification
+
+## PCAs
+
+### Setting up the data - does it make sense to use the scaled data for this? or to use the original data and apply PCA, SPCA, tSNE?
+
+```{r}
+set.seed(36669)
+expr_mat <- as.matrix(tmp[,-1])
+labels <- (as.numeric(cell_types) - 1)
+dt <- sort(sample(nrow(expr_pca), nrow(expr_pca)*.7))
+train_in <- expr_pca[dt,]
+train_out <- labels[dt]
+
+test_in <- expr_pca[-dt,]
+test_out <- labels[-dt]
+```
+
+### Logistic Regression
+
+```{r}
+col_name_vec <- c("cell_type", "PC1","PC2","PC3","PC4","PC5","PC6","PC7","PC8","PC9","PC10")
+log_train_df <- as.data.frame(cbind(train_out, train_in))
+colnames(log_train_df) <- col_name_vec
+
+log_test_df <- as.data.frame(cbind(test_out, test_in))
+colnames(log_test_df) <- col_name_vec
+
+
+# logistic regression
+glm_res <- nnet::multinom(cell_type ~ ., data = log_train_df)
+pred_vec <- predict(glm_res, log_train_df)
+tab_mis <- table(pred_vec, train_out)
+tab_mis
+1 - sum(diag(tab_mis))/sum(tab_mis)
+
+
+pred_vec <- stats::predict(glm_res, newdata = log_test_df)
+tab_mis <- table(pred_vec, test_out)
+tab_mis
+1 - sum(diag(tab_mis))/sum(tab_mis)
+```
+
+
+### Penalized Logistic Regression
+
+```{r}
+# penalized logistic regression
+set.seed(36669)
+cv_glm_train <- glmnet::cv.glmnet(x = train_in, y = train_out, family = "multinomial",
+                                  alpha = 1, nfolds = 10, intercept = T)
+
+# predict training error using training data
+cv_pred_train <- as.numeric(glmnet:::predict.cv.glmnet(cv_glm_train, newx =  train_in,
+                                                       s = "lambda.1se", type = "class"))
+
+# misclassification rate
+tab_mis_train <- table(cv_pred_train, train_out)
+tab_mis_train
+# # calculating the rate
+1 - sum(diag(tab_mis_train))/sum(tab_mis_train)
+
+# predict training error using testing data
+cv_pred_test <- as.numeric(glmnet:::predict.cv.glmnet(cv_glm_train, newx =  test_in,
+                                                      s = "lambda.1se", type = "class"))
+
+tab_mis_test <- table(cv_pred_test, test_out)
+tab_mis_test
+# calculating the rate
+1 - sum(diag(tab_mis_test))/sum(tab_mis_test)
+```
+
+
+### XGBoost
+
+```{r}
+dtrain <- xgb.DMatrix(data = train_in, label =train_out)
+# XGBoost
+set.seed(36669)
+xgb_cv <- xgboost::xgb.cv(data = dtrain, nrounds = 20, max.depth = 5, nfold = 5, "eval_metric" = "mlogloss", objective = "multi:softmax", early_stopping_rounds = 5, "num_class" = 7)
+
+bstDMatrix <- xgboost(data = dtrain, max.depth = 8, nthread = 8, nrounds = xgb_cv$best_iteration, num_class = length(unique(cell_types)), objective = "multi:softmax")
+pred <- predict(bstDMatrix, as.matrix(expr_pca))
+
+mean((as.numeric(cell_types) - 1) == pred )
+
+
+pred <- predict(bstDMatrix, as.matrix(test_in))
+
+test <- mean(test_out == pred)
+
+confusionMatrix(data=as.factor(pred), reference = as.factor(as.numeric(test_out)))
+1 - test
+
+importance_mat <- xgboost::xgb.importance(model = bstDMatrix)
+xgboost::xgb.plot.importance(importance_mat, main = "Feature Importance", xlab = "Importance Measure")
+head(importance_mat)
+```
+
+## Sparse PCAs
+
+### Preparing the Data
+
+```{r}
+set.seed(36649)
+labels <- (as.numeric(cell_types) - 1)
+dt <- sort(sample(nrow(expr_spca), nrow(expr_spca)*.7))
+train_in <- expr_spca[dt,]
+train_out <- labels[dt]
+
+test_in <- expr_spca[-dt,]
+test_out <- labels[-dt]
+```
+
+### Logistic Regression
+
+```{r}
+# logistic reg dataframe
+col_name_vec <- c("cell_type", "PC1","PC2","PC3","PC4","PC5","PC6","PC7","PC8","PC9","PC10")
+log_train_df <- as.data.frame(cbind(train_out, train_in))
+colnames(log_train_df) <- col_name_vec
+
+log_test_df <- as.data.frame(cbind(test_out, test_in))
+colnames(log_test_df) <- col_name_vec
+
+
+# logistic regression
+glm_res <- nnet::multinom(cell_type ~ ., data = log_train_df)
+pred_vec <- predict(glm_res, log_train_df)
+tab_mis <- table(pred_vec, train_out)
+tab_mis
+1 - sum(diag(tab_mis))/sum(tab_mis)
+
+pred_vec <- stats::predict(glm_res, newdata = log_test_df)
+tab_mis <- table(pred_vec, test_out)
+tab_mis
+1 - sum(diag(tab_mis))/sum(tab_mis)
+```
+
+
+### Penalized Logistic Regression
+
+```{r}
+# penalized logistic regression
+set.seed(36649)
+cv_glm_train <- glmnet::cv.glmnet(x = train_in, y = train_out, family = "multinomial",
+                                  alpha = 1, nfolds = 10, intercept = T)
+
+# predict training error using training data
+cv_pred_train <- as.numeric(glmnet:::predict.cv.glmnet(cv_glm_train, newx =  train_in,
+                                                       s = "lambda.1se", type = "class"))
+
+# misclassification rate
+tab_mis_train <- table(cv_pred_train, train_out)
+tab_mis_train
+# # calculating the rate
+1 - sum(diag(tab_mis_train))/sum(tab_mis_train)
+
+# predict training error using testing data
+cv_pred_test <- as.numeric(glmnet:::predict.cv.glmnet(cv_glm_train, newx =  test_in,
+                                                      s = "lambda.1se", type = "class"))
+
+tab_mis_test <- table(cv_pred_test, test_out)
+tab_mis_test
+# calculating the rate
+1 - sum(diag(tab_mis_test))/sum(tab_mis_test)
+```
+
+### XGBoost
+
+```{r}
+# xgboost
+dtrain <- xgb.DMatrix(data = train_in, label =train_out)
+# XGBoost
+set.seed(36649)
+xgb_cv <- xgboost::xgb.cv(data = dtrain, nrounds = 20, max.depth = 5, nfold = 5, "eval_metric" = "mlogloss", objective = "multi:softmax", early_stopping_rounds = 5, "num_class" = 7)
+
+bstDMatrix <- xgboost(data = dtrain, max.depth = 8, nthread = 8, nrounds = xgb_cv$best_iteration, num_class = length(unique(cell_types)), objective = "multi:softmax")
+pred <- predict(bstDMatrix, as.matrix(expr_spca))
+
+mean((as.numeric(cell_types) - 1) == pred )
+
+
+pred <- predict(bstDMatrix, as.matrix(test_in))
+
+test <- mean(test_out == pred)
+
+confusionMatrix(data=as.factor(pred), reference = as.factor(as.numeric(test_out)))
+1 - test
+
+importance_mat <- xgboost::xgb.importance(model = bstDMatrix)
+xgboost::xgb.plot.importance(importance_mat, main = "Feature Importance", xlab = "Importance Measure")
+head(importance_mat)
+```
+
+## tSNE
+
+### Preparing the Data
+
+```{r}
+set.seed(36669)
+# separating into test and train - 70 / 30
+labels <- (as.numeric(cell_types) - 1)
+dt <- sort(sample(nrow(tsne.out$Y), nrow(tsne.out$Y)*.7))
+train_in <- tsne.out$Y[dt,]
+train_out <- labels[dt]
+
+test_in <- tsne.out$Y[-dt,]
+test_out <- labels[-dt]
+```
+
+### Logistic Regression
+
+```{r}
+# logistic reg dataframe
+col_name_vec <- c("cell_type", "dim1","dim2","dim3")
+log_train_df <- as.data.frame(cbind(train_out, train_in))
+colnames(log_train_df) <- col_name_vec
+
+log_test_df <- as.data.frame(cbind(test_out, test_in))
+colnames(log_test_df) <- col_name_vec
+
+
+# logistic regression
+glm_res <- nnet::multinom(cell_type ~ ., data = log_train_df)
+pred_vec <- predict(glm_res, log_train_df)
+tab_mis <- table(pred_vec, train_out)
+tab_mis
+1 - sum(diag(tab_mis))/sum(tab_mis)
+
+
+pred_vec <- stats::predict(glm_res, newdata = log_test_df)
+tab_mis <- table(pred_vec, test_out)
+tab_mis
+1 - sum(diag(tab_mis))/sum(tab_mis)
+```
+
+### Penalized Logistic Regression
+
+```{r}
+# penalized logistic regression
+set.seed(36669)
+cv_glm_train <- glmnet::cv.glmnet(x = train_in, y = train_out, family = "multinomial",
+                                  alpha = 1, nfolds = 10, intercept = T)
+
+# predict training error using training data
+cv_pred_train <- as.numeric(glmnet:::predict.cv.glmnet(cv_glm_train, newx =  train_in,
+                                                       s = "lambda.1se", type = "class"))
+
+# misclassification rate
+tab_mis_train <- table(cv_pred_train, train_out)
+tab_mis_train
+# # calculating the rate
+1 - sum(diag(tab_mis_train))/sum(tab_mis_train)
+
+# predict training error using testing data
+cv_pred_test <- as.numeric(glmnet:::predict.cv.glmnet(cv_glm_train, newx =  test_in,
+                                                      s = "lambda.1se", type = "class"))
+
+tab_mis_test <- table(cv_pred_test, test_out)
+tab_mis_test
+# calculating the rate
+1 - sum(diag(tab_mis_test))/sum(tab_mis_test)
+```
+
+### XGBoost
+
+```{r}
+dtrain <- xgb.DMatrix(data = train_in, label =train_out)
+# XGBoost
+set.seed(36669)
+xgb_cv <- xgboost::xgb.cv(data = dtrain, nrounds = 20, max.depth = 5, nfold = 5, "eval_metric" = "mlogloss", objective = "multi:softmax", early_stopping_rounds = 5, "num_class" = 7)
+
+bstDMatrix <- xgboost(data = dtrain, max.depth = 8, nthread = 8, nrounds = xgb_cv$best_iteration, num_class = length(unique(cell_types)), objective = "multi:softmax")
+pred <- predict(bstDMatrix, as.matrix(tsne.out$Y))
+
+mean((as.numeric(cell_types) - 1) == pred )
+
+
+pred <- predict(bstDMatrix, as.matrix(test_in))
+
+test <- mean(test_out == pred)
+
+confusionMatrix(data=as.factor(pred), reference = as.factor(as.numeric(test_out)))
+1 - test
+
+importance_mat <- xgboost::xgb.importance(model = bstDMatrix)
+xgboost::xgb.plot.importance(importance_mat, main = "Feature Importance", xlab = "Importance Measure")
+head(importance_mat)
+```
+
+

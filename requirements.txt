@@ -1,0 +1,3 @@
+# packages in environment at C:\Users\Owner\anaconda3\envs\my_portfolio:
+#
+# Name                    Version                   Build  Channel

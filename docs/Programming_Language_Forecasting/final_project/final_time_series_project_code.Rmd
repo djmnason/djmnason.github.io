@@ -1,0 +1,667 @@
+---
+title: "Code Appendix"
+output: 
+  pdf_document:
+    toc: true
+    toc_depth: 3
+---
+
+Work completed by each person in order of contribution
+
+EDA and Data Processing: Daniel Nason, Clare Cruz
+
+SARIMA modeling: Megan Christy, Daniel Nason
+
+VAR modeling: Daniel Nason
+
+Appendix Organization: Clare Cruz
+
+Paper/Presentation: Alana Willis, Clare Cruz, Megan Christy, Daniel Nason
+
+# Research Questions
+
+## Prediction
+
+Which data science programs between R and Python had the highest predicted growth rate in from 2019 to 2022?
+
+## Inference
+
+Which data science topics (classification, regression, cluster analysis, time series, and machine learning) significantly contributed to the growth rates in R and Python?
+
+# ___________________________________________________________________________
+
+# Script Setup
+
+## Packages Load
+
+```{r, warning = FALSE, message=FALSE}
+# Package Load
+library(ggplot2)
+library(tidyverse)
+library(lubridate)
+library(vars)
+library(xts)
+library(scales)
+library(fGarch)
+library(ggcorrplot)
+library(forecast)
+```
+
+## Data Load
+
+```{r}
+# Read in the data
+#stack.data <- read.csv("C:/Users/cbrig/OneDrive/CMU/Time Series/Course Project/time_series_project_data.csv") 
+stack.data <- read.csv("C:/Users/Owner/CMU/Spring/36-618/Project/time_series_project_data.csv")
+
+clean.stack.data <- stack.data %>%
+  mutate(date = lubridate::mdy(date)) %>% 
+  dplyr::select(date, r, python, regression, classification, cluster_analysis, time_series, machine_learning) %>%
+  mutate(id = row_number()) %>%
+  dplyr::filter(id > 24) %>%
+  dplyr::select(-id)
+#head(clean.stack.data)
+```
+
+> Please note that the first two years were excluded from the data set for a few reasons. To start, some of the topics had no recorded questions in these first two years which negatively affects the modeling process. Similarly, 2009 is around the time period where data science and StackOverflow became popular and utilized by people in the field. Consequently, the data in the first two years looks drastically different than the remainder of the dataset. Therefore, we decided that it was best to focus on the data from 2011 to 2019.
+
+```{r}
+# Data Preparation by putting the relevant variables into their own lists
+predictor.list <- c("python", "r", "machine_learning", "time_series", 
+                                "regression", "classification", "cluster_analysis")
+full.var.list <- c("python", "r", "machine_learning", "time_series", 
+                                "regression", "classification", "cluster_analysis", "date")
+pretty.names <- list('Python', "R", "Machine Learning", "Time Series", "Regression", "Classification", 
+                  "Cluster Analysis")
+```
+
+## Time Series Objects
+
+```{r}
+# Create a formal time series for every series
+for(variable in predictor.list){
+  name <- paste0(variable, '.ts') 
+  assign(name, ts(clean.stack.data[variable], start = c(2011,1), frequency = 12))
+}
+
+# Store the time series in a list so that we can access them easily
+series.list <- list(python.ts, r.ts, machine_learning.ts, time_series.ts, 
+                                regression.ts, classification.ts, cluster_analysis.ts)
+```
+
+# ___________________________________________________________________________
+
+# Exploratory Data Analysis
+
+## Full Time Series Visualization
+
+```{r}
+# Visualizes the entire data set
+
+# Create the data needed for the visualization
+full.ts.viz <- clean.stack.data %>%
+  dplyr::select(all_of(full.var.list)) %>% 
+  rename(Python = python, R = r, 'Machine Learning' = machine_learning, 
+         Classification = classification, 'Cluster Analysis' = cluster_analysis, 
+         'Time Series' = time_series, Regression = regression) %>% 
+  gather(key = "variable", value = "value", -date)
+
+# Create the visualization
+ggplot(full.ts.viz, aes(x = date, y = value, color = variable, group = variable)) + 
+  geom_line(size = 1) + 
+  theme_minimal()+
+	scale_y_continuous(labels = label_number(suffix = "K", scale = 1e-3))+
+  labs(color='Time Series', y = 'Question Count', x = 'Time', title = "Complete StackOverflow Time Series") +
+  theme(text = element_text(size=14),
+        axis.text.x = element_text(size = 14),
+        axis.text.y = element_text(size = 14),
+        legend.text = element_text(size = 14)) 
+```
+
+> Unsurprisingly, Python stands out among all the time series with the largest number of questions since it is the most popular data science tool. The magnitude can also be explained by the other applications in different fields. R has the second most amount of questions which is also expected since R has other uses. The remaining topics have significantly less monthly questions, with machine learning having the most questions out of the data science topics. While it is hard to see the behavior in the models, every series has an increasing trend. This aligns with the growing data science job market and demand for these skills.
+
+## Correlation Plot
+
+```{r}
+clean.stack.data %>%
+  dplyr::select(-date) %>%
+  rename(Python = python, R = r, 'Machine Learning' = machine_learning, Classification = classification, 
+         'Cluster Analysis' = cluster_analysis, Regression = regression, 'Time Series' = time_series) %>% 
+  cor() %>%
+  ggcorrplot(type = 'upper',
+             show.diag = T,
+             lab = T,
+             title = 'Correlation Plot for StackOverflow Time Series') + 
+  scale_fill_gradient2(low = 'orange', high = 'blue', breaks=c(-1, 1), limit=c(-1, 1), name = "Correlation") 
+```
+
+> The correlation plot shows that all the series have a strong positive correlation with eachother. This matches the observations from the full time series since they all have an increasing trend. It is worth noting that R and Python have one of the strong correlations which may cause issues with multicollinearity in the modeling process.
+
+## Individual Series Plots
+
+```{r, fig.height=10, fig.width=9}
+par(mfrow = c(4,2))
+for(i in 1:length(series.list)){
+  plot(series.list[[i]], main = pretty.names[[i]], ylab = 'Question Count')}
+```
+
+## Month Plots
+
+```{r, fig.height=10, fig.width=9}
+par(mfrow = c(4,2))
+for(i in 1:length(series.list)){
+  monthplot(series.list[[i]], main = pretty.names[[i]], ylab = 'Question Count')}
+```
+
+> The decomposition of the time series for R and Python show that there may be seasonality in the time series since there are higher question counts in March, April, and November. While there may be several causes for this, one possible explanation could be the academic semester. In other words, students tend to start using these tools during these months.
+
+## Decompositions
+
+```{r}
+# Commented out to save space
+# for(i in 1:length(series.list)){
+#   plot(decompose(series.list[[i]]))}
+```
+
+```{r, fig.width=4, fig.height=6}
+# Nice decomposition plots for the presentation and paper
+python.ts %>%
+  decompose() %>%
+  autoplot()+
+  theme_bw() +
+  labs(title = 'Decomposition of the Python Time Series')
+
+r.ts %>%
+  decompose() %>%
+  autoplot() +
+  theme_bw() +
+  labs(title = 'Decomposition of the R Time Series')
+```
+
+## ACF and PACF
+
+```{r,fig.height=8, fig.width=7}
+# ACF 
+par(mfrow = c(4,2))
+for(i in 1:length(series.list)){
+  acf(series.list[[i]], ylab = pretty.names[[i]], main = '')}
+
+# PACF
+par(mfrow = c(4,2))
+for(i in 1:length(series.list)){
+  pacf(series.list[[i]], ylab = pretty.names[[i]], main = '')}
+```
+
+> The ACF plots for all the time series show a slow decay with increasing lags which suggests that there may be an autoregressive behavior to the series. Additionally, the PACF plots occasionally show a small significant correlation around a year long lag. This supports our observations for the decompositions which suggests a seasonality component to the time series.
+
+# ___________________________________________________________________________
+
+# ARIMA Modeling
+
+> Our exploratory data analysis showed that our time series has increasing trends with a possible annual seasonal component. To better understand our series, an ARIMA model will be built for the R and Python series. The model building process will start by fitting a model based on the findings from the exploratory data analysis. Then, the model will be checked through residual versus observed plots, ACF and PACF plots, QQ plots, and multiple simulations to see if the fitted model is a good fit to the data. After the initial diagnosis, an additional model will be created using the auto.arima() function in R. The parameters for this function will be decided based on the initial model built from the exploratory data analysis. If the model from the auto.arime() function matches the model that was built from the exploratory data analysis and the model diagnostics showed no glaring errors, the ARIMA model will be used to calculate forecasted values. If the auto.arima() function produces a different model, then the model diagnostics listed earlier will be applied again to see if the new model is a better fit to the data. The orders from the final ARIMA model will determine what actions need to be taken before fitting the VARMA model.
+
+## Python
+
+### Manual ARIMA Modeling
+
+```{r}
+# Python Model 1 by Manual Fits
+python.mod1 = arima(python.ts, order = c(1,0,0), seasonal = list(order = c(1,1,0), period = 12))
+```
+
+> The exploratory data analysis showed autoregressive behavior, increasing trend, and annual seasonality. Therefore, the first ARIMA model was fitted with a non-seasonal autoregressive term, a seasonal autoregressive term, and a seasonal trend term.
+
+### Manual ARIMA Diagnostics
+
+#### Residuals
+
+&nbsp;
+
+```{r}
+# Diagnostics
+par(mfrow=c(1,1))
+plot(python.ts, col = "black", main = "Observed vs. Fitted ARIMA values for Manual Python Model",
+     ylab = "Python")
+lines(python.ts - python.mod1$resid, col = "red")
+legend("topleft", fill = c("black", "red"), c("Actual", "Fitted"))
+
+tsdisplay(resid(python.mod1)[13:length(python.mod1$resid)], main= "Manual ARIMA Python Model Residuals")
+
+qqnorm(python.mod1$resid[13:length(python.mod1$resid)])
+qqline(python.mod1$resid[13:length(python.mod1$resid)])
+```
+
+> The fitted versus observed plot shows that the model fits the data well, with a few possible exceptions in 2018. The residuals also appear to be approximately stationary with a constant mean and variance. However, the ACF and PACF plots display a small significant correlation around the 13th lag. These correlations are not significant enough to warrant any action, but it is worth noting that there may be an underlying behavior in the series. Also, the QQ plot shows that the residuals are approximately normal. 
+
+#### Simulations
+
+&nbsp;
+
+```{r}
+# Plot Multiple Simulations
+par(mfrow=c(3,3))
+plot(python.ts, ylab = 'Python', main = 'Observed data')
+for (i in 1:8){
+  set.seed(i)
+  plot(simulate(python.mod1),
+     ylab = 'Simulated',
+     main = paste('Data from simulation', i, sep = ' '))
+}
+par(mfrow=c(1,1))
+# In general, diagnostics look pretty good but still missing some seasonality
+```
+
+> Finally, the simulations support the idea that the model is a good fit to the data since the simulations exhibit similar behaviors to the original StackOverflow time series. 
+
+### Model Validation
+
+```{r}
+# Python auto.arima with these arguments, auto.arima fits the same model we fit
+auto.arima(python.ts, trace = T, stepwise = T, approximation = F, allowdrift = F)
+
+# stepwise = F very slow for seasonal models
+# fits a different model when restrict to stationary model, but diagnostics are worse
+# also played around with changing max.p and max.q, but don't get anything new/anything that performs better
+```
+
+> The auto arima function produced the same model that was suggested by the exploratory data anlaysis. Therefore, the model diganostics were not performed again.
+
+### Forecasts
+
+```{r}
+# Python forecast
+plot(forecast(python.mod1, h = 24), ylab = "Python Question Count")
+```
+
+> The forecasts from the ARIMA model for Python have an increasing trend with some variations within the year which is what we would expect based on the previous observations. All of these observations suggest that the ARIMA(1,0,0)(1,1,0) model is a good fit to the data.
+
+
+## R
+
+### Manual ARIMA Modeling
+
+```{r}
+# Python Model 1 by Manual Fits
+r.mod1 = arima(r.ts, order = c(1,0,0), seasonal = list(order = c(1,1,0), period = 12))
+```
+
+> The same initial ARIMA model was fit to the R time series since the exploratory data analysis showed similar behavior for both series.
+
+### Manual ARIMA Diagnostics
+
+#### Residuals
+
+&nbsp;
+
+```{r}
+# Diagnostics
+par(mfrow=c(1,1))
+plot(r.ts, col = "black", main = "Observed vs. Fitted SARIMA values for Manual R Model",
+     ylab = "Question Count")
+lines(r.ts - r.mod1$resid, col = "red")
+legend("topleft", fill = c("black", "red"), c("Actual", "Fitted"))
+
+tsdisplay(resid(r.mod1)[13:length(r.mod1$resid)], main= "Manual ARIMA R Model Residuals")
+
+qqnorm(r.mod1$resid[13:length(r.mod1$resid)])
+qqline(r.mod1$resid[13:length(r.mod1$resid)])
+# In general, diagnostics look pretty good
+```
+
+> The fitted versus observed plot shows that the model fits the data well, again with a few possible exceptions in 2018. The residuals also appear to be approximately stationary with a constant mean and variance. But unlike the Python series, there appears to be no significant correlations in the ACF and PACF plots. Also, the QQ plot shows that the residuals are approximately normal. 
+
+#### Simulations
+
+&nbsp;
+
+```{r}
+# Plot Multiple Simulations
+par(mfrow=c(3,3))
+plot(r.ts, ylab = 'Python', main = 'Observed data')
+for (i in 1:8){
+  set.seed(i)
+  plot(simulate(r.mod1),
+     ylab = 'Simulated',
+     main = paste('Data from simulation', i, sep = ' '))
+}
+par(mfrow=c(1,1))
+```
+
+> Several of the simulations exhibit similar behaviors to the original StackOverflow time series since they have constant increasing trends with slight annual variations.
+
+### Model Validation
+
+```{r}
+# R auto.arima
+# tried similar differences in auto.arima arguments here
+# fits a different model when restrict to stationary model, but diagnostics are worse
+# also played around with changing max.p and max.q, but don't get anything new/anything that performs better
+auto.arima(r.ts, trace = T, stepwise = T, approximation = F, allowdrift = F)
+# auto.arima actually fits a different model here than what we tried-fits d and D difference and an MA component
+```
+
+> The auto arima function produced a different model than the one suggested by the exploratory data analysis. Specifically, the auto function determined to add a non-seasonal trend, remove a seasonal autoregressive component, and add a seasonal moving average term.
+
+### Model Fit - Auto ARIMA
+
+```{r}
+# R Model 2 (with auto.arima results)
+r.mod2 = arima(r.ts, order = c(1,1,0), seasonal = list(order = c(0,1,1), period = 12))
+```
+
+### Model Diagnostics - Auto ARIMA
+
+> Since the auto arima function produced a different model, we will fit this model and perform the model diagnostics to see if it is a better fit to the data.
+
+```{r, fig.height=6}
+par(mfrow=c(1,1))
+plot(r.ts, col = "black", main = "Observed vs. Fitted SARIMA values for Auto ARIMA R Model",
+     ylab = "Question Count")
+lines(r.ts - r.mod2$resid, col = "red")
+legend("topleft", fill = c("black", "red"), c("Actual", "Fitted"))
+
+tsdisplay(resid(r.mod2)[13:length(r.mod2$resid)], main = "Auto ARIMA R Residuals")
+
+qqnorm(r.mod2$resid[13:length(r.mod2$resid)])
+qqline(r.mod2$resid[13:length(r.mod2$resid)])
+```
+
+> The fitted versus observed plot shows that the model fits the data well, again with a few possible exceptions in 2018. The residuals also appear to be approximately stationary with a constant mean and variance. However, there appear to be a few correlations on the border of being significant. Also, the QQ plot shows that the residuals are approximately normal. 
+
+```{r}
+# Second Round of Simulations
+par(mfrow=c(3,3))
+plot(r.ts, ylab = 'R', main = 'Observed data')
+for (i in 1:8){
+  set.seed(i)
+  plot(simulate(r.mod2),
+     ylab = 'Simulated',
+     main = paste('Data from simulation', i, sep = ' '))
+}
+par(mfrow=c(1,1))
+```
+
+> Several of the simulations exhibit similar behaviors to the original StackOverflow time series since they have constant increasing trends with slight annual variations.
+
+### Forecasts
+
+```{r, fig.height = 8}
+# R forecasts
+par(mfrow = c(2,1))
+plot(forecast(r.mod1, h = 24), ylab = "R Question Count")
+plot(forecast(r.mod2, h = 24), ylab = "R Question Count")
+```
+
+> Based on the diagnostics, fit, and forecasts, the models suggested by the exploratory data analysis and by the auto arima functions are very similar. Looking at the summary output, the model that auto.arima picks has slightly lower AIC and RMSE/MAE, so overall this is the best model to the data.
+
+```{r}
+# Summaries of R models
+summary(r.mod1)
+summary(r.mod2)
+```
+
+# ___________________________________________________________________________
+
+# VARMA Modeling
+
+> The final ARIMA model and the exploratory data analysis suggests that there is a trend and seasonal component to our time series. Therefore, we will detrend and deseasonalize the data before fitting the VARMA model.
+
+## Python 
+
+### Deseasonalize and Detrend
+
+```{r}
+# Python
+# Grab the months for the Python series
+python.mon <- factor(cycle(python.ts), labels=month.abb)
+
+# Creating a detrended and deseasonalized
+# Detrend
+python.lm <- lm(python.ts ~ time(python.ts), na.action = NULL)
+python.detrend <- resid(python.lm)
+
+# Deseasonalize
+python.detrend.lm <- lm(python.detrend ~ python.mon, na.action = NULL)
+python.detrend.deseason <- resid(python.detrend.lm)
+
+tsdisplay(python.detrend.deseason, main = 'Python Detrendend and Deseasonalized')
+```
+
+```{r}
+# Combine the series
+# Model 1 - Python
+python.series <-  cbind(python.detrend.deseason, machine_learning.ts, classification.ts, 
+                    regression.ts, time_series.ts, cluster_analysis.ts)
+```
+
+### Variable Selection
+
+```{r}
+VARselect(python.series, lag.max = 13, type = 'none')$selection
+```
+
+> The VARselect function concludes that a VAR(1) model is the best fit to the data.
+
+```{r}
+python.fit <- VAR(python.series, p = 1, type = 'none')
+summary(python.fit) 
+```
+
+> The summary of the VAR(1) on page X shows that the model for the detrended and deseasonalized Python series can be explained by any of the data science topics since all their p-values are above 0.05. The only variable that seems to predict the Python question count is the lagged variable of the Python series. Additionally, the R-squared for the model is 0.43 which suggests that the model does not have strong predictive power. 
+
+### Model Validation
+
+```{r}
+# Plot the residuals
+plot(ts(resid(python.fit))[,1], main = 'Residuals for Python VAR(1) Model', ylab = 'Residual')
+
+# Predictions
+python.pred <- predict(python.fit, n.ahead = 24, ci = 0.95)
+plot(python.pred)
+fanchart(python.pred)
+```
+
+```{r, fig.height=8}
+# ACF Plots
+acf(resid(python.fit), 24)
+```
+
+> The plot of the residuals versus fitted values for the Python VAR(1) model shows higher variance in the last year of the data. The ACF and CCF plots occassionally show significant correlations around the year-long lag.  
+
+### Forecasts
+
+> Recall that before fitting the VARMA model, the original time series was detrended and deseasonalized in order to get the best model fit. But, for the forecasted series, it is better to report the predictions in their original scale. Therefore, here we are transforming the forecasted values from the VAR(1) model back into their original scale.
+
+```{r, fig.height=5}
+# Python
+# Plot of actual vs fitted values
+plot(ts(python.detrend.deseason[2:length(python.detrend.deseason)], start = c(2011,1), frequency = 12),
+     main = paste("Obs vs. Fitted VAR(1) Values for Detrended & Deseasonalized Python Series"),
+     ylab = paste("Question Count"))
+lines(ts(python.detrend.deseason[2:length(python.detrend.deseason)] - python.fit$varresult$python.detrend.deseason$residuals, 
+         start = c(2011,1), frequency = 12), col="red")
+legend("topleft",legend = c("Actual", "Fitted"), fill = c("black", "red"))
+```
+
+```{r}
+# Python
+# Creates the time period for forecasting the trend
+python.months.past.current.projection <- 24
+python.forecast.time <- seq(max(time(python.ts)) + min(cycle(python.ts))/max(cycle(python.ts)),
+                     max(time(python.ts)) + (python.months.past.current.projection/max(cycle(python.ts))),
+                     by = min(cycle(python.ts)) / max(cycle(python.ts)))
+python.fcsts <- NULL
+
+# Creates a matrix that stores the forecasts for the linear model with trend
+python.fcsts <- rbind(rep(coef(python.lm)[[1]],length(python.forecast.time)),
+               coef(python.lm)[[2]]*python.forecast.time)
+```
+
+```{r}
+# getting seasonality model coefficient estimates
+tmp <- matrix(rep(0, length(coef(python.detrend.lm))^2), ncol = length(coef(python.detrend.lm)))
+diag(tmp) <- coef(python.detrend.lm)
+tmp[1,] <- tmp[1,1] # since deasonalized model has dummy variables measuring difference from intercept
+python.fcsts <- rbind(python.fcsts, rep(colSums(tmp), length.out = python.months.past.current.projection))
+```
+
+```{r}
+# Gets the forecasted values based on the VAR model and appends to matrix
+python.fcst.detrend.deseason <- ts(python.pred$fcst$python.detrend.deseason[,1], start = c(2020,1), frequency = 12)
+python.fcsts <- rbind(python.fcsts, python.fcst.detrend.deseason)
+
+# Now, each column is a forecast for a future month (24 cols = 2 years)
+# each row (except the last one) is the forecasted value at that month associated with a coefficient
+# from the original models fit when detrending/deasonalizing 
+# colSums will give us this forecast
+python.fcsts <- ts(colSums(python.fcsts), start = c(2020,1), frequency = 12)
+python.total <- ts(c(python.ts, python.fcsts), start = c(2011,1), frequency = 12)
+```
+
+```{r}
+# Plot the transformed predicted values
+# Plotting over the whole time series initially so R sets the correct boundaries
+plot(python.total, 
+     main = paste('Python VAR(1) Forecast through', 
+                  month.name[(max(time(python.total)) 
+                              - floor(max(time(python.total))))*max(cycle(python.total)) + 1], 
+                  floor(max(time(python.total)))),
+     ylab = 'Question Count')
+# Plot the forecasted values
+lines(python.fcsts, col = 'red', lty = 6)
+# Cutoff for data and predicted values
+abline(v = max(time(python.ts)) + 1/max(cycle(python.ts)), lty = 2, col = 'blue')
+paste('Ending actual data count:', python.ts[length(python.ts)])
+paste('Ending projection data count:', floor(python.fcsts[length(python.fcsts)]))
+paste('Forecasted growth %:',round((floor(python.fcsts[length(python.fcsts)]) - python.ts[length(python.ts)])/python.ts[length(python.ts)]*100,2))
+```
+
+> The forecasted values indicated that the positive trend will continue to 2022. Python’s predicted number of questions is forecasted to grow from 20,058 in December 2019 to 23,661 in December 2022, a 17.96% growth rate.
+
+## R
+
+> Again, the final ARIMA model and the exploratory data analysis suggests that there is a trend and seasonal component to our time series. Therefore, we will detrend and deseasonalize the data before fitting the VARMA model.
+
+### Deseasonalize and Detrend
+
+```{r}
+# Grab the months for the R series
+r.mon <- factor(cycle(r.ts), labels=month.abb)
+
+# Creating a detrended and deseasonalized
+# Detrend
+r.lm <- lm(r.ts ~ time(r.ts), na.action = NULL)
+r.detrend <- resid(r.lm)
+
+# Deseasonalize
+r.detrend.lm <- lm(r.detrend ~ r.mon, na.action = NULL)
+r.detrend.deseason <- resid(r.detrend.lm)
+
+tsdisplay(r.detrend.deseason, main = 'R Detrendend and Deseasonalized')
+```
+
+```{r}
+# Model 2 - R
+r.series <-  cbind(r.detrend.deseason, machine_learning.ts, classification.ts, 
+                    regression.ts, time_series.ts, cluster_analysis.ts)
+```
+
+### Variable Selection
+
+```{r}
+VARselect(r.series, lag.max = 13, type = 'none')$selection
+```
+
+> The VARselect model also suggests that a VAR(1) model is the best fit to the data.
+
+```{r}
+r.fit <- VAR(r.series, p = 1, type = 'none')
+summary(r.fit) 
+```
+
+> Unlike the Python model, the VAR(1) model for R has two variables that significant contribute to the model: classification and cluster analysis. Both of these variables have p-values below 0.05 which suggests that they explain a significant amount of variance in the Python series. Additionally, the R-squared value is 0.81 which suggests that the model has strong predictive power.
+
+### Model Validation
+
+```{r}
+plot(ts(resid(r.fit))[,1], main = 'Residuals for R VAR(1) Model', ylab = 'Residual')
+r.pred <- predict(r.fit, n.ahead = 24, ci = 0.95)
+plot(r.pred)
+fanchart(r.pred)
+```
+
+```{r, fig.height = 10}
+acf(resid(r.fit), 24)
+```
+
+> The residuals for the detrended and deasonalized R series follow a stationary behavior, with a constant mean and variance. The ACF and PACF plots also show less instances of significant correlations around the annual lag point. 
+
+### Forecasts
+
+```{r, fig.height=5}
+# R
+# Plot of actuals vs fitted values
+plot(ts(r.detrend.deseason[2:length(r.detrend.deseason)], start = c(2011,1), frequency = 12),
+     main = paste("Obs vs. Fitted VAR(1) Values for Detrended & Deseasonalized R Series"),
+     ylab = paste("Question Count"))
+lines(ts(r.detrend.deseason[2:length(r.detrend.deseason)] - r.fit$varresult$r.detrend.deseason$residuals, 
+         start = c(2011,1), frequency = 12), col="red")
+legend("topleft",legend = c("Actual", "Fitted"), fill = c("black", "red"))
+```
+
+```{r}
+# R
+# Creates the time period for forecasting the trend
+r.months.past.current.projection <- 24
+r.forecast.time <- seq(max(time(r.ts)) + min(cycle(r.ts))/max(cycle(r.ts)),
+                     max(time(r.ts)) + (r.months.past.current.projection/max(cycle(r.ts))),
+                     by = min(cycle(r.ts)) / max(cycle(r.ts)))
+r.fcsts <- NULL
+# creates a matrix that stores the forecasts for the linear model with trend
+r.fcsts <- rbind(rep(coef(r.lm)[[1]],length(r.forecast.time)),
+               coef(r.lm)[[2]]*r.forecast.time)
+```
+
+```{r}
+# getting seasonality model coefficient estimates
+tmp <- matrix(rep(0, length(coef(r.detrend.lm))^2), ncol = length(coef(r.detrend.lm)))
+diag(tmp) <- coef(r.detrend.lm)
+tmp[1,] <- tmp[1,1] # since deasonalized model has dummy variables measuring difference from intercept
+r.fcsts <- rbind(r.fcsts, rep(colSums(tmp), length.out = r.months.past.current.projection))
+```
+
+```{r}
+# R translated forecasts
+# Get the forecasted values based on the VAR model and appends to matrix
+r.fcst.detrend.deseason <- ts(r.pred$fcst$r.detrend.deseason[,1], start = c(2020,1), frequency = 12)
+r.fcsts <- rbind(r.fcsts, r.fcst.detrend.deseason)
+
+# Now, each column is a forecast for a future month (24 cols = 2 years)
+# each row (except the last one) is the forecasted value at that month associated with a coefficient
+# from the original models fit when detrending/deasonalizing 
+# colSums will give us this forecast
+r.fcsts <- ts(colSums(r.fcsts), start = c(2020,1), frequency = 12)
+r.total <- ts(c(r.ts, r.fcsts), start = c(2011,1), frequency = 12)
+```
+
+```{r}
+# Plot the transformed forecasted values
+# Plotting over the whole time series initially so R sets the correct boundaries
+plot(r.total, main = paste('R VAR(1) Forecast through', 
+              month.name[(max(time(r.total)) - floor(max(time(r.total))))*max(cycle(r.total)) + 1], 
+              floor(max(time(r.total)))),
+     ylab = 'Question Count')
+# Plot the forecasted values
+lines(r.fcsts, col = 'red', lty = 6)
+# Line to show the divide between actual and predicted values
+abline(v = max(time(r.ts)) + 1/max(cycle(r.ts)), lty = 2, col = 'blue')
+paste('Ending projection data count:', floor(r.fcsts[length(r.fcsts)]))
+paste('Ending actual data count:', r.ts[length(r.ts)])
+paste('Forecasted growth %:',round((floor(r.fcsts[length(r.fcsts)]) - r.ts[length(r.ts)])/r.ts[length(r.ts)]*100,2))
+```
+
+> The forecasted values indicated that the positive trend will continue to 2022. R’s predicted number of questions is forecasted to grow from 4,150 in December 2020 to 5,238 in December 2021, a 26.2% growth rate.
+
+## Next Steps
+
+> Consider using: log transformation of the response variables (R/Python), and VARMA modeling to account for possible vector white noise that influences response variable.

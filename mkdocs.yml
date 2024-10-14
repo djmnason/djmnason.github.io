@@ -1,0 +1,25 @@
+# Project Information
+site_name: My Docs
+site_url: https://djmnason.github.io/
+site_author: Daniel Nason
+site_description: >-
+  Daniel Nason's data science portfolio.
+
+# Repository
+repo_name: djmnason/djmnason.github.io
+repo_url: https://github.com/djmnason/djmnason.github.io
+
+# Configuration
+theme:
+  name: mkdocs
+
+# Page tree
+nav:
+  - Home: index.md
+  - Projects:
+    - "Statistical Genomics and High Dimensional Inference": Statistics_Genomics_High_Dimensional_Inference/README.md
+    - "Employee Attrition Prediction": Employee_Attrition_Prediction/README.md
+    - "Programming Language Forecasting": Programming_Language_Forecasting/README.md
+    - "Capital Bikeshare Prediction Analysis": Capital_Bikeshare_Analysis/README.md
+    - "Master's Program Capstone - PHIGHT COVID": Capstone_PHIGHT_COVID/README.md
+    - "Dealer or No Deal Banker Analysis": DOND_Analysis/README.md
