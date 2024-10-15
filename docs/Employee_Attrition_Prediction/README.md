@@ -1,6 +1,6 @@
 # Employee Attrition Prediction Project
 
-This project uses synthetic data from [Kaggle](https://www.kaggle.com/datasets/patelprashant/employee-attrition) to develop a classification model for the likelihood of an employee to leave the organization, tested on out-of-sample data.
+This project uses synthetic data from [Kaggle](https://www.kaggle.com/datasets/patelprashant/employee-attrition) to develop a classification model for the likelihood of an employee to leave the organization, tested on out-of-sample data. The repository can be found [here](https://github.com/djmnason/djmnason.github.io/tree/main/docs/Employee_Attrition_Prediction).
 
 ## Data
 

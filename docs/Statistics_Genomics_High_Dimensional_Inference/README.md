@@ -10,7 +10,7 @@ Links:
 - [Code](./final_project/36-669_final_project.Rmd)
 - [Report](./final_project/36-669_final_project.pdf)
 
-This project evaluates the use of various statistical learning techniques on the Zeisel mice dataset. The goal is to better understand the performance of various algorithms on this data, both for comparing clusters generated from unsupervised learning models as well as multi-class classification on the categories found by the researchers in the Zeisel dataset.
+In this [repository](https://github.com/djmnason/djmnason.github.io/tree/main/docs/Statistics_Genomics_High_Dimensional_Inference), our project evaluates the use of various statistical learning techniques on the Zeisel mice dataset. The goal is to better understand the performance of various algorithms on this data, both for comparing clusters generated from unsupervised learning models as well as multi-class classification on the categories found by the researchers in the Zeisel dataset.
 
 ### Data
 

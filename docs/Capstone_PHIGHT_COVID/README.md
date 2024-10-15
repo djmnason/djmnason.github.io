@@ -5,7 +5,7 @@
 
 ## Deliverables
 
-Check out our [presentation](./reports/PHIGHT_COVID_Final_Presentation.pdf) and [final report](./reports/PHIGHT_COVID_final_report.pdf) for a more in-depth explanation.
+Our repository can be found [here](https://github.com/djmnason/djmnason.github.io/tree/main/docs/Capstone_PHIGHT_COVID). Check out our [presentation](./reports/PHIGHT_COVID_Final_Presentation.pdf) and [final report](./reports/PHIGHT_COVID_final_report.pdf) for a more in-depth explanation.
 
 ## Introduction
 

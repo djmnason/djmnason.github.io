@@ -1,5 +1,5 @@
 # Capitol Bikeshare
-This repository contains my code and data used for predicting bike availability in Washington D.C. using the publicly available [Capital Bikeshare](https://s3.amazonaws.com/capitalbikeshare-data/index.html) dataset. This was originally a project for my Master's program that I then completed on my own time and increasing the scale of the project. The final presentation can be found [here](./results/capital_bikeshare_presentation.pdf).
+This [repository](https://github.com/djmnason/djmnason.github.io/tree/main/docs/Capital_Bikeshare_Analysis) contains my code and data used for predicting bike availability in Washington D.C. using the publicly available [Capital Bikeshare](https://s3.amazonaws.com/capitalbikeshare-data/index.html) dataset. This was originally a project for my Master's program that I then completed on my own time and increasing the scale of the project. The final presentation can be found [here](./results/capital_bikeshare_presentation.pdf).
 
 ## Data collection
 The [processing](./code/processing.ipynb) notebook details the code that was used to collect the data from publicly available sources

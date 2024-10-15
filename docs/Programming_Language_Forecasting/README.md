@@ -4,7 +4,7 @@
 
 ## Time Series Analysis Final Project
 
-The presentation can be found [here](./final_project/time_series_presentation.pdf), as well as the [written report](./final_project/time_series_report.pdf).
+In the [repository](https://github.com/djmnason/djmnason.github.io/tree/main/docs/Programming_Language_Forecasting), presentation can be found [here](./final_project/time_series_presentation.pdf), as well as the [written report](./final_project/time_series_report.pdf).
 
 ### Project Background
 
