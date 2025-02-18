@@ -32,6 +32,6 @@ This was my master's program capstone project that built off previously complete
 
 This project collects and explores how a the banker in the popular game show [Deal or No Deal](https://en.wikipedia.org/wiki/Deal_or_No_Deal_(American_game_show)) offers deals to players. In addition to modeling the banker's behavior based on the status of a player's board, it also develops a simple simulator that allows you to play the game with simulated offers generated based on historical game data.
 
-[Super Bowl Random Grid Generator](./Super_Bowl_Random_Grid/)
+[Super Bowl Random Grid Generator](./Super_Bowl_Random_Grid/README.md)
 
 This was a fun little piece of code I wrote leading to create a random grid of all possible units digits combinations for the two teams playing in the Super Bowl, where the person who had the box at the end of quarter score was the winner.
