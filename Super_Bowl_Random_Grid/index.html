@@ -6,9 +6,9 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         
         <meta name="author" content="Daniel Nason">
-        <link rel="canonical" href="https://djmnason.github.io/Capstone_PHIGHT_COVID/">
+        <link rel="canonical" href="https://djmnason.github.io/Super_Bowl_Random_Grid/">
         <link rel="shortcut icon" href="../img/favicon.ico">
-        <title>Master's Program Capstone - PHIGHT COVID - My Docs</title>
+        <title>Random Grid Super Bowl - My Docs</title>
         <link href="../css/bootstrap.min.css" rel="stylesheet">
         <link href="../css/fontawesome.min.css" rel="stylesheet">
         <link href="../css/brands.min.css" rel="stylesheet">
@@ -58,7 +58,7 @@
 </li>
                                     
 <li>
-    <a href="./" class="dropdown-item active" aria-current="page">Master's Program Capstone - PHIGHT COVID</a>
+    <a href="../Capstone_PHIGHT_COVID/" class="dropdown-item">Master's Program Capstone - PHIGHT COVID</a>
 </li>
                                     
 <li>
@@ -66,7 +66,7 @@
 </li>
                                     
 <li>
-    <a href="../Super_Bowl_Random_Grid/" class="dropdown-item">Random Grid Super Bowl</a>
+    <a href="./" class="dropdown-item active" aria-current="page">Random Grid Super Bowl</a>
 </li>
                                 </ul>
                             </li>
@@ -79,17 +79,17 @@
                             </a>
                         </li>
                             <li class="nav-item">
-                                <a rel="prev" href="../Capital_Bikeshare_Analysis/" class="nav-link">
+                                <a rel="prev" href="../DOND_Analysis/" class="nav-link">
                                     <i class="fa fa-arrow-left"></i> Previous
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a rel="next" href="../DOND_Analysis/" class="nav-link">
+                                <a rel="next" class="nav-link disabled">
                                     Next <i class="fa fa-arrow-right"></i>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a href="https://github.com/djmnason/djmnason.github.io/edit/master/docs/Capstone_PHIGHT_COVID/README.md" class="nav-link">Edit on djmnason/djmnason.github.io
+                                <a href="https://github.com/djmnason/djmnason.github.io/edit/master/docs/Super_Bowl_Random_Grid/README.md" class="nav-link">Edit on djmnason/djmnason.github.io
                                     </a>
                             </li>
                     </ul>
@@ -110,21 +110,9 @@
     <div id="toc-collapse" class="navbar-collapse collapse card bg-body-tertiary">
         <ul class="nav flex-column">
             
-            <li class="nav-item" data-bs-level="1"><a href="#phight-covid-capstone-project-msp-class-of-2022" class="nav-link">PHIGHT COVID Capstone Project: MSP Class of 2022</a>
+            <li class="nav-item" data-bs-level="1"><a href="#random-grid-generator-for-super-bowl" class="nav-link">Random Grid Generator for Super Bowl</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-bs-level="2"><a href="#deliverables" class="nav-link">Deliverables</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-bs-level="2"><a href="#introduction" class="nav-link">Introduction</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-bs-level="2"><a href="#methods" class="nav-link">Methods</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-bs-level="2"><a href="#findings" class="nav-link">Findings</a>
+            <li class="nav-item" data-bs-level="2"><a href="#user-guide" class="nav-link">User Guide</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -135,26 +123,15 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="phight-covid-capstone-project-msp-class-of-2022">PHIGHT COVID Capstone Project: MSP Class of 2022</h1>
-<ul>
-<li>Authors: Daniel Nason, Wei-Yu Tseng, Julia Keating, Ziyan Wang, Hongsheng Xie</li>
-<li>Advisor: Valeria Ventura, Carnegie Mellon University Department of Statistics and Data Science</li>
-<li>Collaborators: <a href="https://phightcovid.org/">PHIGHT COVID</a>, Lakdawala Lab, University of Pittsburgh</li>
-</ul>
-<h2 id="deliverables">Deliverables</h2>
-<p>Our repository can be found <a href="https://github.com/djmnason/djmnason.github.io/tree/main/docs/Capstone_PHIGHT_COVID">here</a>. Check out our <a href="reports/PHIGHT_COVID_Final_Presentation.pdf">presentation</a> and <a href="reports/PHIGHT_COVID_final_report.pdf">final report</a> for a more in-depth explanation.</p>
-<h2 id="introduction">Introduction</h2>
-<p>Building off of the work previous completed by the <a href="https://github.com/alexazhu/PHIGHT-COVID">MSP Class of 2021</a>, we explore the impact of teaching posture on disease transmission. Specifically, we attempt to validate the results from the <a href="https://www.medrxiv.org/content/10.1101/2021.07.16.21260464v1.full">article</a> based on the project's findings using the methods in <a href="https://pubmed.ncbi.nlm.nih.gov/24043437/">Cori et al. 2013</a>.</p>
-<h2 id="methods">Methods</h2>
-<p>The effective reproductive report R<sub>t</sub> outlined in <a href="https://pubmed.ncbi.nlm.nih.gov/24043437/">Cori et al. 2013</a> estimates the ratio of the number of new infections generated at a given time to the total infectiousness of infected individuals at the same time. Note that infections need to be inferred through an observable time-series (i.e. cases, deaths) collected based on the disease, which requires a deconvolution in order to estimate R<sub>t</sub>. <a href="https://pubmed.ncbi.nlm.nih.gov/35545230/">Miller et al. 2020</a> detail this process in <a href="https://pubmed.ncbi.nlm.nih.gov/35545230/#&amp;gid=article-figures&amp;pid=figure-1-uid-0">Figure 1</a>:</p>
-<p>Due to the volatility in the cases time series, we focus on the deaths time-series despite its smaller sample size due to the reliability of the data collected relative to cases of testing positive.</p>
-<h2 id="findings">Findings</h2>
-<p>We compare the change in R<sub>t</sub> following the start of the school year to determine the impact of teaching posture (i.e. on-premises, online-only, or hybrid) for K-12 students on COVID-19 disease transmission. We split the semester up into two time-periods, as detailed in the following visual:</p>
-<p><img alt="semester_start_visual" src="reports/images/school_semester_start.png" /></p>
-<p>If there was a relationship between disease transmission and whether students were in school, we would expect to see a strong positive relationship between teaching posture and R<sub>t</sub> for on-premises teaching compared to online-only teaching. However, there does not appear to be any difference in the relationship between teaching posture and the change in R<sub>t</sub> during the time periods of interest, as seen in the following visuals:</p>
-<p><img alt="change_in_rt" src="reports/images/change_in_rt_scatter.png" /></p>
-<p><img alt="change_in_rt_pop" src="reports/images/change_in_rt_scatter_by_density.png" /></p>
-<p><img alt="change_in_rt_posture" src="reports/images/change_in_rt_scatter_by_teaching_posture.png" /></p></div>
+<h1 id="random-grid-generator-for-super-bowl">Random Grid Generator for Super Bowl</h1>
+<p>A random generator for Super Bowl boxes that can be run from the command line.</p>
+<h2 id="user-guide">User Guide</h2>
+<p>The code will prompt you to enter the information about the game and generate the random grid based on this information. In order to generate the grid, you need the following:
+- Who is playing in the game (AFC and NFC abbreviations)
+- Who are the participants in the game
+  - For each participant, how many boxes do they want</p>
+<p>Screenshot example:</p>
+<p><img alt="example_usage" src="example_usage.png" /></p></div>
             </div>
         </div>
 
